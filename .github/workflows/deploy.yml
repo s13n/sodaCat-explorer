@@ -1,0 +1,63 @@
+name: Deploy to GitHub Pages
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Build Data]
+    types: [completed]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout sodaCat
+        uses: actions/checkout@v4
+        with:
+          repository: s13n/sodaCat
+          path: sodaCat
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install ruamel.yaml
+
+      - name: Build JSON data
+        run: |
+          python3 build.py \
+            --models-dir sodaCat/models/ST \
+            --config sodaCat/svd/ST/STM32.yaml \
+            --output-dir data
+
+      - name: Prepare site
+        run: |
+          mkdir _site
+          cp index.html _site/
+          cp -r css js data _site/
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

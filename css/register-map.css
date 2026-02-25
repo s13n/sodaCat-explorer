@@ -1,0 +1,192 @@
+/* Register Map Visualization */
+
+.reg-map-container {
+  margin: 16px 0;
+  overflow-x: auto;
+}
+
+.reg-map {
+  display: grid;
+  grid-template-columns: repeat(32, minmax(28px, 1fr));
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-width: 700px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.reg-map-16 {
+  grid-template-columns: repeat(16, minmax(40px, 1fr));
+}
+
+/* Bit labels row */
+.reg-map .bit-label {
+  text-align: center;
+  padding: 3px 0;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border-light);
+  font-size: 10px;
+}
+
+.reg-map .bit-label:last-of-type {
+  border-right: none;
+}
+
+/* Field cells */
+.reg-map .field-cell {
+  text-align: center;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border-light);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: filter 0.1s;
+}
+
+.reg-map .field-cell:hover {
+  filter: brightness(0.92);
+}
+
+.field-cell.field-rw {
+  background: #c4a97d;
+  color: #3d2b1f;
+}
+
+.field-cell.field-ro {
+  background: #a8c4a0;
+  color: #2b3d1f;
+}
+
+.field-cell.field-wo {
+  background: #c4a0a0;
+  color: #3d1f1f;
+}
+
+.field-cell.field-reserved {
+  background: var(--border-light);
+  color: var(--text-muted);
+  cursor: default;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(0,0,0,0.04) 4px,
+    rgba(0,0,0,0.04) 8px
+  );
+}
+
+.field-cell .field-name {
+  font-weight: bold;
+  font-size: 11px;
+}
+
+/* Reset value row */
+.reg-map .reset-bit {
+  text-align: center;
+  padding: 2px 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-light);
+}
+
+/* Field tooltip */
+.field-tooltip {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  max-width: 300px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  z-index: 500;
+  pointer-events: none;
+}
+
+.field-tooltip .tt-name {
+  font-weight: bold;
+  font-family: var(--font-mono);
+}
+
+.field-tooltip .tt-bits {
+  color: var(--text-muted);
+  margin-left: 8px;
+  font-family: var(--font-mono);
+}
+
+.field-tooltip .tt-access {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.field-tooltip .tt-desc {
+  margin-top: 4px;
+  color: var(--text-secondary);
+}
+
+/* Field detail panel (below register map) */
+.field-detail {
+  margin: 16px 0;
+}
+
+.field-detail-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.field-detail-card.highlighted {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(139, 94, 60, 0.15);
+}
+
+.field-detail-card h4 {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.field-detail-card .field-bits {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.field-detail-card .field-desc {
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+/* Enum values table */
+.enum-table {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.enum-table th {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.enum-table td {
+  padding: 3px 8px;
+}
+
+.enum-table .enum-val {
+  font-family: var(--font-mono);
+  text-align: right;
+}

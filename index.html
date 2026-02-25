@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sodaCat — STM32 Hardware Browser</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/register-map.css">
+</head>
+<body>
+  <header id="app-header">
+    <div class="header-left">
+      <a href="#/" class="logo">sodaCat</a>
+      <nav id="breadcrumb"></nav>
+    </div>
+    <div class="header-right">
+      <div class="search-container">
+        <input type="text" id="search-input" placeholder="Search chips, blocks, registers..." autocomplete="off">
+        <div id="search-dropdown" class="search-dropdown hidden"></div>
+      </div>
+    </div>
+  </header>
+
+  <div id="app-body">
+    <aside id="sidebar">
+      <div id="sidebar-tree"></div>
+    </aside>
+    <main id="content">
+      <div id="loading" class="loading">Loading...</div>
+    </main>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

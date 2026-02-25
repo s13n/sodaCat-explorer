@@ -1,0 +1,44 @@
+name: Build Data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout explorer
+        uses: actions/checkout@v4
+
+      - name: Checkout sodaCat
+        uses: actions/checkout@v4
+        with:
+          repository: s13n/sodaCat
+          path: sodaCat
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install ruamel.yaml
+
+      - name: Build JSON data
+        run: |
+          python3 build.py \
+            --models-dir sodaCat/models/ST \
+            --config sodaCat/svd/ST/STM32.yaml \
+            --output-dir data
+
+      - name: Upload data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-data
+          path: data/
+          retention-days: 90
