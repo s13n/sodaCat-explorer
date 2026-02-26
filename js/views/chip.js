@@ -6,6 +6,7 @@ import { setBreadcrumb } from '../components/breadcrumb.js';
 import { highlightChip } from '../sidebar.js';
 import { renderInterruptTable } from '../components/interrupt-table.js';
 import { openComparePanel } from '../compare/panel.js';
+import { renderExportButton } from '../components/export.js';
 
 export async function renderChip(params) {
   const { family, sub, chip: chipName } = params;
@@ -47,6 +48,7 @@ export async function renderChip(params) {
     openComparePanel('chip', path, family, sub);
   }}, 'Compare with\u2026');
   btnGroup.appendChild(compareBtn);
+  btnGroup.appendChild(renderExportButton(data, 'chip', null, path));
   main.appendChild(btnGroup);
 
   // CPU info

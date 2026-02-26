@@ -3,6 +3,7 @@
 import { el } from '../util.js';
 import { loadBlock } from '../data.js';
 import { generatePeripheralHeader, generateRegisterStruct } from './cxx-export.js';
+import { generateChipHeader } from './cxx-chip-export.js';
 
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text).then(() => {
@@ -76,7 +77,9 @@ function exportAsCStruct(data, type, blockName) {
 }
 
 async function exportAsCxxHeader(data, type, blockName, blockPath) {
-  if (type === 'block') {
+  if (type === 'chip') {
+    copyToClipboard(generateChipHeader(data, blockPath));
+  } else if (type === 'block') {
     // Always load full block data (summary data lacks field arrays)
     let fullData = data;
     if (blockPath && data.registers?.[0] && 'fieldCount' in data.registers[0]) {
@@ -98,10 +101,12 @@ export function renderExportButton(data, type, blockName, blockPath) {
     menu.classList.remove('open');
   }}, 'Copy as JSON'));
 
-  menu.appendChild(el('button', { onClick: () => {
-    exportAsCStruct(data, type, blockName);
-    menu.classList.remove('open');
-  }}, 'Copy as C struct'));
+  if (type !== 'chip') {
+    menu.appendChild(el('button', { onClick: () => {
+      exportAsCStruct(data, type, blockName);
+      menu.classList.remove('open');
+    }}, 'Copy as C struct'));
+  }
 
   menu.appendChild(el('button', { onClick: () => {
     exportAsCxxHeader(data, type, blockName, blockPath);
