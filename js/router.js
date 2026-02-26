@@ -44,7 +44,7 @@ async function handleRoute() {
   // #/block/H7/H742_H753/ADC/reg/ISR  (register view)
   // #/block/H7/H742_H753/ADC          (block view)
   // #/block/WWDG                       (shared block view)
-  const regMatch = path.match(/^\/block\/(.+)\/reg\/([^/]+)$/);
+  const regMatch = path.match(/^\/block\/(.+?)\/reg\/(.+)$/);
   if (regMatch) {
     const route = routes.find(r => r.pattern === '/block/:path/reg/:reg');
     if (route) {

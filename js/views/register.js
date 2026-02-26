@@ -21,7 +21,13 @@ export async function renderRegister(params) {
     crumbs.push({ label: pathParts[1], hash: `#/subfamily/${pathParts[0]}/${pathParts[1]}` });
   }
   crumbs.push({ label: blockName, hash: `#/block/${path}` });
-  crumbs.push({ label: regName });
+  if (regName.includes('/')) {
+    const [clusterPart, subPart] = regName.split('/', 2);
+    crumbs.push({ label: clusterPart.replace('[%s]', '').replace('%s', '') });
+    crumbs.push({ label: subPart });
+  } else {
+    crumbs.push({ label: regName });
+  }
   setBreadcrumb(crumbs);
 
   const main = clearContent();
@@ -35,9 +41,20 @@ export async function renderRegister(params) {
     return;
   }
 
-  // Find register
+  // Find register (supports cluster sub-registers via "ClusterName/SubRegName")
   const regs = blockData.registers || [];
-  const reg = regs.find(r => r.name === regName);
+  let reg, cluster, navRegs;
+  if (regName.includes('/')) {
+    const [clusterName, subRegName] = regName.split('/', 2);
+    cluster = regs.find(r => r.name === clusterName);
+    if (cluster && cluster.registers) {
+      reg = cluster.registers.find(r => r.name === subRegName);
+      navRegs = cluster.registers;
+    }
+  } else {
+    reg = regs.find(r => r.name === regName);
+    navRegs = regs;
+  }
   if (!reg) {
     main.innerHTML = `<div class="loading">Register "${escapeHtml(regName)}" not found in ${escapeHtml(blockName)}</div>`;
     return;
@@ -46,8 +63,11 @@ export async function renderRegister(params) {
   main.innerHTML = '';
 
   // Header
+  const clusterPrefix = cluster
+    ? `${cluster.name.replace('[%s]', '').replace('%s', '')}.`
+    : '';
   main.appendChild(el('div', { className: 'section-header' },
-    el('h1', {}, `${blockName}.${reg.name}`),
+    el('h1', {}, `${blockName}.${clusterPrefix}${reg.name}`),
     el('span', { className: 'subtitle' }, reg.description || ''),
   ));
 
@@ -140,17 +160,18 @@ export async function renderRegister(params) {
     main.appendChild(el('p', { className: 'description' }, 'No fields defined for this register.'));
   }
 
-  // Navigation: prev/next register
-  const regIdx = regs.indexOf(reg);
+  // Navigation: prev/next register (within cluster if applicable)
+  const navPrefix = cluster ? `${cluster.name}/` : '';
+  const regIdx = navRegs.indexOf(reg);
   const nav = el('div', { className: 'btn-group', style: { marginTop: '24px' } });
   if (regIdx > 0) {
-    const prev = regs[regIdx - 1];
-    nav.appendChild(el('a', { className: 'btn', href: `#/block/${path}/reg/${prev.name}` },
+    const prev = navRegs[regIdx - 1];
+    nav.appendChild(el('a', { className: 'btn', href: `#/block/${path}/reg/${navPrefix}${prev.name}` },
       `\u2190 ${prev.name}`));
   }
-  if (regIdx < regs.length - 1) {
-    const next = regs[regIdx + 1];
-    nav.appendChild(el('a', { className: 'btn', href: `#/block/${path}/reg/${next.name}` },
+  if (regIdx < navRegs.length - 1) {
+    const next = navRegs[regIdx + 1];
+    nav.appendChild(el('a', { className: 'btn', href: `#/block/${path}/reg/${navPrefix}${next.name}` },
       `${next.name} \u2192`));
   }
   main.appendChild(nav);

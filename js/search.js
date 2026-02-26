@@ -72,8 +72,14 @@ function resultHash(item) {
   switch (item.type) {
     case 'chip': return `#/chip/${item.path}`;
     case 'block': return `#/block/${item.path}`;
-    case 'register': return `#/block/${item.blockPath}/reg/${item.name}`;
-    case 'field': return `#/block/${item.blockPath}/reg/${item.register}`;
+    case 'register': {
+      const regPart = item.cluster ? `${item.cluster}/${item.name}` : item.name;
+      return `#/block/${item.blockPath}/reg/${regPart}`;
+    }
+    case 'field': {
+      const regPart = item.cluster ? `${item.cluster}/${item.register}` : item.register;
+      return `#/block/${item.blockPath}/reg/${regPart}`;
+    }
     default: return '#/';
   }
 }
@@ -81,8 +87,14 @@ function resultHash(item) {
 function resultDetail(item) {
   switch (item.type) {
     case 'block': return item.description || item.path;
-    case 'register': return `${item.block} \u203A ${item.name}`;
-    case 'field': return `${item.block} \u203A ${item.register} \u203A ${item.name}`;
+    case 'register': {
+      const clusterPart = item.cluster ? ` \u203A ${item.cluster}` : '';
+      return `${item.block}${clusterPart} \u203A ${item.name}`;
+    }
+    case 'field': {
+      const clusterPart = item.cluster ? ` \u203A ${item.cluster}` : '';
+      return `${item.block}${clusterPart} \u203A ${item.register} \u203A ${item.name}`;
+    }
     default: return item.path || '';
   }
 }

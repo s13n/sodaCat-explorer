@@ -53,23 +53,65 @@ function exportAsCStruct(data, type, blockName) {
     lines.push(`} ${name}_t;`);
     copyToClipboard(lines.join('\n'));
   } else if (type === 'block') {
-    // Block-level: register offset layout
+    // Block-level: register offset layout with cluster and array support
     const name = data.name || 'PERIPH';
-    let lines = [`typedef struct {`];
+    let lines = [];
     const regs = data.registers || [];
+
+    // Emit nested structs for clusters first
+    for (const reg of regs) {
+      if (!reg.registers) continue;
+      const clusterName = (reg.name || '').replace('[%s]', '').replace('%s', '');
+      lines.push(`typedef struct {`);
+      let subPos = 0;
+      let subRes = 0;
+      for (const sub of reg.registers) {
+        const subOffset = sub.addressOffset || 0;
+        const subDim = sub.dim || 1;
+        const subSize = (sub.size || 32) / 8;
+        const subType = subSize <= 1 ? 'uint8_t' : subSize <= 2 ? 'uint16_t' : 'uint32_t';
+        if (subOffset > subPos) {
+          lines.push(`  uint8_t _reserved${subRes}[${subOffset - subPos}];`);
+          subRes++;
+        }
+        const subName = (sub.name || '').replace('[%s]', '').replace('%s', '');
+        const arrSuffix = subDim > 1 ? `[${subDim}]` : '';
+        lines.push(`  volatile ${subType} ${subName}${arrSuffix};`);
+        subPos = subOffset + subSize * subDim;
+      }
+      const padTo = reg.dimIncrement || 0;
+      if (padTo > subPos) {
+        lines.push(`  uint8_t _reserved${subRes}[${padTo - subPos}];`);
+      }
+      lines.push(`} ${clusterName}_t;`);
+      lines.push('');
+    }
+
+    lines.push(`typedef struct {`);
     let pos = 0;
     let reserved = 0;
     for (const reg of regs) {
       const offset = reg.addressOffset || 0;
-      const size = (reg.size || 32) / 8;
-      const cType = size <= 1 ? 'uint8_t' : size <= 2 ? 'uint16_t' : 'uint32_t';
       if (offset > pos) {
-        const gap = offset - pos;
-        lines.push(`  uint8_t _reserved${reserved}[${gap}];`);
+        lines.push(`  uint8_t _reserved${reserved}[${offset - pos}];`);
         reserved++;
       }
-      lines.push(`  volatile ${cType} ${reg.name};`);
-      pos = offset + size;
+      if (reg.registers) {
+        const clusterName = (reg.name || '').replace('[%s]', '').replace('%s', '');
+        const dim = reg.dim || 1;
+        const arrSuffix = dim > 1 ? `[${dim}]` : '';
+        const clusterSize = (reg.dimIncrement || 0) * dim;
+        lines.push(`  ${clusterName}_t ${clusterName}${arrSuffix};`);
+        pos = offset + clusterSize;
+      } else {
+        const dim = reg.dim || 1;
+        const size = (reg.size || 32) / 8;
+        const cType = size <= 1 ? 'uint8_t' : size <= 2 ? 'uint16_t' : 'uint32_t';
+        const regName = (reg.name || '').replace('[%s]', '').replace('%s', '');
+        const arrSuffix = dim > 1 ? `[${dim}]` : '';
+        lines.push(`  volatile ${cType} ${regName}${arrSuffix};`);
+        pos = offset + size * dim;
+      }
     }
     lines.push(`} ${name}_TypeDef;`);
     copyToClipboard(lines.join('\n'));

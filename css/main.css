@@ -413,6 +413,18 @@ body {
   font-size: 13px;
 }
 
+.data-table .cluster-header td {
+  background: var(--bg-card);
+  font-weight: bold;
+  font-size: 13px;
+  border-bottom: 2px solid var(--border-light);
+  padding-top: 10px;
+}
+
+.data-table .cluster-indent {
+  padding-left: 24px;
+}
+
 /* ── Detail Sections ───────────────────────────────────── */
 
 .section-header {

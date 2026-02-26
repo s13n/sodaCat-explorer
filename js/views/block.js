@@ -90,9 +90,11 @@ export async function renderBlock(params) {
 
   // Registers
   const registers = data.registers || [];
+  const regCount = registers.reduce((n, r) =>
+    n + (r.registers ? r.registers.length : 1), 0);
   main.appendChild(el('div', { className: 'section-header' },
     el('h2', {}, 'Registers'),
-    el('span', { className: 'subtitle' }, `${registers.length} registers`),
+    el('span', { className: 'subtitle' }, `${regCount} registers`),
   ));
 
   if (registers.length === 0) {
@@ -112,32 +114,77 @@ export async function renderBlock(params) {
     ));
   table.appendChild(thead);
 
+  const fmtOffset = (v) => hexAddr(v).replace(/^0x0{4}/, '0x');
+
   const tbody = el('tbody');
   for (const reg of registers) {
-    const offset = reg.addressOffset;
-    const access = reg.access || '';
-    const reset = reg.resetValue;
-    const bits = reg.size || 32;
-    const fieldInfo = isSummary
-      ? `${reg.fieldCount} fields`
-      : `${(reg.fields || []).length} fields`;
+    const dim = reg.dim || 1;
+    const dimStr = dim > 1 ? `[0..${dim - 1}]` : '';
+    const baseName = (reg.name || '').replace('[%s]', '').replace('%s', '');
 
-    const row = el('tr', {
-      className: 'clickable',
-      onClick: () => {
-        window.location.hash = `#/block/${path}/reg/${reg.name}`;
+    if (reg.registers) {
+      // Cluster: header row + sub-register rows
+      tbody.appendChild(el('tr', { className: 'cluster-header' },
+        el('td', { className: 'mono' }, fmtOffset(reg.addressOffset)),
+        el('td', { className: 'mono', colSpan: '5' },
+          `${baseName}${dimStr}`,
+          dim > 1 ? ` (stride ${reg.dimIncrement})` : '',
+          reg.description ? ` \u2014 ${reg.description}` : '',
+        ),
+      ));
+      for (const sub of reg.registers) {
+        const subDim = sub.dim || 1;
+        const subDimStr = subDim > 1 ? `[0..${subDim - 1}]` : '';
+        const subName = (sub.name || '').replace('[%s]', '').replace('%s', '');
+        const access = sub.access || '';
+        const reset = sub.resetValue;
+        const bits = sub.size || 32;
+        const fieldInfo = isSummary
+          ? `${sub.fieldCount} fields`
+          : `${(sub.fields || []).length} fields`;
+
+        tbody.appendChild(el('tr', {
+          className: 'clickable',
+          onClick: () => {
+            window.location.hash = `#/block/${path}/reg/${reg.name}/${sub.name}`;
+          },
+        },
+          el('td', { className: 'mono' }, `+${fmtOffset(sub.addressOffset)}`),
+          el('td', { className: 'mono cluster-indent' }, `${subName}${subDimStr}`),
+          el('td', {},
+            el('span', { className: `access-badge ${accessClass(access)}` }, accessLabel(access))),
+          el('td', { className: 'mono' }, reset != null ? hexReset(reset, bits) : '\u2014'),
+          el('td', {}, fieldInfo),
+          el('td', { style: { maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+            sub.description || ''),
+        ));
+      }
+    } else {
+      // Plain register (or register array)
+      const access = reg.access || '';
+      const reset = reg.resetValue;
+      const bits = reg.size || 32;
+      const fieldInfo = isSummary
+        ? `${reg.fieldCount} fields`
+        : `${(reg.fields || []).length} fields`;
+
+      const row = el('tr', {
+        className: 'clickable',
+        onClick: () => {
+          window.location.hash = `#/block/${path}/reg/${reg.name}`;
+        },
       },
-    },
-      el('td', { className: 'mono' }, hexAddr(offset).replace(/^0x0{4}/, '0x')),
-      el('td', { className: 'mono' }, reg.name),
-      el('td', {},
-        el('span', { className: `access-badge ${accessClass(access)}` }, accessLabel(access))),
-      el('td', { className: 'mono' }, reset != null ? hexReset(reset, bits) : '\u2014'),
-      el('td', {}, fieldInfo),
-      el('td', { style: { maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
-        reg.description || ''),
-    );
-    tbody.appendChild(row);
+        el('td', { className: 'mono' }, fmtOffset(reg.addressOffset)),
+        el('td', { className: 'mono' }, `${baseName}${dimStr}`),
+        el('td', {},
+          el('span', { className: `access-badge ${accessClass(access)}` }, accessLabel(access))),
+        el('td', { className: 'mono' }, reset != null ? hexReset(reset, bits) : '\u2014'),
+        el('td', {}, fieldInfo),
+        el('td', { style: { maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+          reg.description || ''),
+      );
+      tbody.appendChild(row);
+    }
   }
   table.appendChild(tbody);
   main.appendChild(table);

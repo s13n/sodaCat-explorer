@@ -79,16 +79,22 @@ def resolve_model_path(model_name, family_code, subfamily_name, block_index):
     return None
 
 
+def summarize_register(reg):
+    """Strip fields from a register, replacing with fieldCount."""
+    sr = {k: v for k, v in reg.items() if k not in ('fields', 'registers')}
+    if 'registers' in reg:
+        # Cluster: recurse into sub-registers
+        sr['registers'] = [summarize_register(sub) for sub in reg['registers']]
+    else:
+        fields = reg.get('fields') or []
+        sr['fieldCount'] = len(fields)
+    return sr
+
+
 def make_block_summary(block_obj):
     """Create a lightweight summary: registers without fields (just fieldCount)."""
     summary = {k: v for k, v in block_obj.items() if k != 'registers'}
-    summary_regs = []
-    for reg in block_obj.get('registers', []):
-        sr = {k: v for k, v in reg.items() if k != 'fields'}
-        fields = reg.get('fields') or []
-        sr['fieldCount'] = len(fields)
-        summary_regs.append(sr)
-    summary['registers'] = summary_regs
+    summary['registers'] = [summarize_register(reg) for reg in block_obj.get('registers', [])]
     return summary
 
 
@@ -227,12 +233,16 @@ def main():
                     else:
                         regs = data.get('registers', [])
                         params = data.get('params', [])
+                        reg_count = sum(
+                            len(r.get('registers', [])) if 'registers' in r else 1
+                            for r in regs
+                        )
                         block_index[key] = {
                             'name': str(data.get('name', fname[:-5])),
                             'description': str(data.get('description', '')),
                             'source': str(data.get('source', '')),
                             'path': key,
-                            'registerCount': len(regs),
+                            'registerCount': reg_count,
                             'paramCount': len(params),
                             'isAlias': False,
                         }
@@ -241,23 +251,47 @@ def main():
                         block_name = str(data.get('name', fname[:-5]))
                         for reg in regs:
                             reg_name = str(reg.get('name', ''))
-                            if reg_name:
-                                search_tier2.append({
-                                    'type': 'register',
-                                    'name': reg_name,
-                                    'block': block_name,
-                                    'blockPath': key,
-                                })
-                            for field in (reg.get('fields') or []):
-                                field_name = str(field.get('name', ''))
-                                if field_name:
-                                    search_tier3.append({
-                                        'type': 'field',
-                                        'name': field_name,
-                                        'register': reg_name,
+                            if reg.get('registers'):
+                                # Cluster: index sub-registers
+                                for sub in reg['registers']:
+                                    sub_name = str(sub.get('name', ''))
+                                    if sub_name:
+                                        search_tier2.append({
+                                            'type': 'register',
+                                            'name': sub_name,
+                                            'block': block_name,
+                                            'blockPath': key,
+                                            'cluster': reg_name,
+                                        })
+                                    for field in (sub.get('fields') or []):
+                                        field_name = str(field.get('name', ''))
+                                        if field_name:
+                                            search_tier3.append({
+                                                'type': 'field',
+                                                'name': field_name,
+                                                'register': sub_name,
+                                                'block': block_name,
+                                                'blockPath': key,
+                                                'cluster': reg_name,
+                                            })
+                            else:
+                                if reg_name:
+                                    search_tier2.append({
+                                        'type': 'register',
+                                        'name': reg_name,
                                         'block': block_name,
                                         'blockPath': key,
                                     })
+                                for field in (reg.get('fields') or []):
+                                    field_name = str(field.get('name', ''))
+                                    if field_name:
+                                        search_tier3.append({
+                                            'type': 'field',
+                                            'name': field_name,
+                                            'register': reg_name,
+                                            'block': block_name,
+                                            'blockPath': key,
+                                        })
 
                     # Write block JSON
                     out_path = blocks_out / rel.with_suffix('.json')
