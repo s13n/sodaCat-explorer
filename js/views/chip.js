@@ -66,6 +66,9 @@ export async function renderChip(params) {
     main.appendChild(table);
   }
 
+  // Instances (declared early so interrupt links can reference them)
+  const instances = data.instances || {};
+
   // Interrupts
   const interrupts = data.interrupts || {};
   const irqCount = Object.keys(interrupts).length;
@@ -76,9 +79,6 @@ export async function renderChip(params) {
     ));
     main.appendChild(renderInterruptTable(interrupts, new Set(Object.keys(instances))));
   }
-
-  // Instances
-  const instances = data.instances || {};
   const instList = Object.entries(instances).sort((a, b) => a[0].localeCompare(b[0]));
   main.appendChild(el('div', { className: 'section-header' },
     el('h2', {}, 'Peripheral Instances'),
