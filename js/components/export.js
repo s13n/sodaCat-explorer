@@ -1,6 +1,8 @@
-// Export — copy as JSON or C struct
+// Export — copy as JSON, C struct, or C++ header
 
 import { el } from '../util.js';
+import { loadBlock } from '../data.js';
+import { generatePeripheralHeader, generateRegisterStruct } from './cxx-export.js';
 
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text).then(() => {
@@ -73,7 +75,20 @@ function exportAsCStruct(data, type, blockName) {
   }
 }
 
-export function renderExportButton(data, type, blockName) {
+async function exportAsCxxHeader(data, type, blockName, blockPath) {
+  if (type === 'block') {
+    // Always load full block data (summary data lacks field arrays)
+    let fullData = data;
+    if (blockPath && data.registers?.[0] && 'fieldCount' in data.registers[0]) {
+      try { fullData = await loadBlock(blockPath); } catch { /* use summary */ }
+    }
+    copyToClipboard(generatePeripheralHeader(fullData, blockPath));
+  } else if (type === 'register') {
+    copyToClipboard(generateRegisterStruct(data));
+  }
+}
+
+export function renderExportButton(data, type, blockName, blockPath) {
   const wrapper = el('div', { className: 'export-dropdown' });
   const btn = el('button', { className: 'btn' }, 'Export \u25BE');
   const menu = el('div', { className: 'export-menu' });
@@ -87,6 +102,11 @@ export function renderExportButton(data, type, blockName) {
     exportAsCStruct(data, type, blockName);
     menu.classList.remove('open');
   }}, 'Copy as C struct'));
+
+  menu.appendChild(el('button', { onClick: () => {
+    exportAsCxxHeader(data, type, blockName, blockPath);
+    menu.classList.remove('open');
+  }}, 'Copy as C++ header'));
 
   btn.addEventListener('click', (e) => {
     e.stopPropagation();

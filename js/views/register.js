@@ -65,7 +65,7 @@ export async function renderRegister(params) {
 
   // Export button
   main.appendChild(el('div', { className: 'btn-group' },
-    renderExportButton(reg, 'register', blockName),
+    renderExportButton(reg, 'register', blockName, path),
   ));
 
   // Register map

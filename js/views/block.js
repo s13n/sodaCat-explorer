@@ -76,7 +76,7 @@ export async function renderBlock(params) {
   btnGroup.appendChild(el('button', { className: 'btn', onClick: () => {
     openComparePanel('block', path);
   }}, 'Compare with\u2026'));
-  btnGroup.appendChild(renderExportButton(data, 'block'));
+  btnGroup.appendChild(renderExportButton(data, 'block', null, path));
   main.appendChild(btnGroup);
 
   // Parameters
