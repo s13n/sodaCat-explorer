@@ -212,10 +212,15 @@ function formatIntegrationList(data) {
   let params = '';
   for (const par of (data.params || data.parameters || [])) {
     const desc = par.description || '';
-    if (par.bits) {
+    if (par.type === 'int' && par.max != null) {
+      const bits = (32 - Math.clz32(par.max)) || 1;
+      params += `\tuint16_t ${par.name}:${bits};\t//!< ${desc}\n`;
+    } else if (par.type === 'bool') {
+      params += `\tuint16_t ${par.name}:1;\t//!< ${desc}\n`;
+    } else if (par.bits) {
       params += `\tuint16_t ${par.name}:${par.bits};\t//!< ${desc}\n`;
     } else {
-      const ptype = { bool: 'bool', string: 'const char*' }[par.type] || 'uint32_t';
+      const ptype = { string: 'const char*' }[par.type] || 'uint32_t';
       params += `\t${ptype} ${par.name};\t//!< ${desc}\n`;
     }
   }
