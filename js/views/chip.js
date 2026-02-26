@@ -74,7 +74,7 @@ export async function renderChip(params) {
       el('h2', {}, 'Interrupts'),
       el('span', { className: 'subtitle' }, `${irqCount} vectors`),
     ));
-    main.appendChild(renderInterruptTable(interrupts));
+    main.appendChild(renderInterruptTable(interrupts, new Set(Object.keys(instances))));
   }
 
   // Instances
@@ -101,7 +101,7 @@ export async function renderChip(params) {
     const params = inst.parameters || [];
     const paramsStr = params.map(p => `${p.name}=${p.value}`).join(', ');
 
-    const row = el('tr', { className: 'clickable', onClick: () => {
+    const row = el('tr', { id: `inst-${name}`, className: 'clickable', onClick: () => {
       window.location.hash = `#/block/${modelPath}`;
     }},
       el('td', { className: 'mono' }, name),
