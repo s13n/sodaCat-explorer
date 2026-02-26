@@ -2,11 +2,10 @@
 """Convert sodaCat YAML models to JSON for the web browser.
 
 Usage:
-    python3 build.py --output-dir data \\
-      --vendor ST ../sodaCat/models/ST ../sodaCat/svd/ST/STM32.yaml STM32 \\
-      --vendor NXP ../sodaCat/models/NXP ../sodaCat/svd/NXP/LPC.yaml ""
+    python3 build.py --sodacat-dir ../sodaCat --output-dir data
 
-Single-pass design: each YAML file is loaded exactly once per vendor.
+Auto-discovers vendors by scanning svd/ subdirectories for config YAMLs
+with a 'families' section. Each YAML file is loaded exactly once per vendor.
 """
 
 import argparse
@@ -93,36 +92,56 @@ def make_block_summary(block_obj):
     return summary
 
 
+def discover_vendors(sodacat_dir):
+    """Auto-discover vendors by scanning svd/ subdirectories for family configs."""
+    svd_dir = sodacat_dir / 'svd'
+    if not svd_dir.is_dir():
+        print(f'Error: svd directory not found: {svd_dir}', file=sys.stderr)
+        sys.exit(1)
+
+    vendors = []
+    for vendor_dir in sorted(svd_dir.iterdir()):
+        if not vendor_dir.is_dir():
+            continue
+        for yaml_file in sorted(vendor_dir.glob('*.yaml')):
+            config = load_yaml(yaml_file)
+            if config and 'families' in config:
+                vendor_name = vendor_dir.name
+                display_prefix = str(config.get('displayPrefix', ''))
+                models_dir = sodacat_dir / 'models' / vendor_name
+                if not models_dir.is_dir():
+                    print(f'Warning: models directory not found for {vendor_name}: {models_dir}, skipping', file=sys.stderr)
+                    continue
+                vendors.append((vendor_name, models_dir, yaml_file, config, display_prefix))
+                print(f'Discovered vendor: {vendor_name} (prefix={display_prefix!r}, config={yaml_file.name})', flush=True)
+
+    if not vendors:
+        print('Error: no vendors discovered (no svd/*/config.yaml with families section)', file=sys.stderr)
+        sys.exit(1)
+
+    return vendors
+
+
 def main():
     parser = argparse.ArgumentParser(description='Build sodaCat web data from YAML models')
-    parser.add_argument('--vendor', action='append', nargs=4,
-                        metavar=('NAME', 'MODELS_DIR', 'CONFIG', 'DISPLAY_PREFIX'),
-                        required=True,
-                        help='Vendor spec: NAME MODELS_DIR CONFIG DISPLAY_PREFIX (repeatable)')
+    parser.add_argument('--sodacat-dir', required=True, help='Path to the sodaCat repository root')
     parser.add_argument('--output-dir', required=True, help='Output directory for JSON data')
     args = parser.parse_args()
 
+    sodacat_dir = Path(args.sodacat_dir).resolve()
     output_dir = Path(args.output_dir).resolve()
 
-    # Validate all vendor paths and collect chip names from configs
-    vendors = []
+    # Auto-discover vendors from svd/ subdirectories
+    vendors = discover_vendors(sodacat_dir)
+
+    # Collect chip names from all configs
     all_chip_names = set()
-    for vendor_name, models_dir_str, config_path_str, display_prefix in args.vendor:
-        models_dir = Path(models_dir_str).resolve()
-        config_path = Path(config_path_str).resolve()
-        if not models_dir.is_dir():
-            print(f'Error: models directory not found: {models_dir}', file=sys.stderr)
-            sys.exit(1)
-        if not config_path.is_file():
-            print(f'Error: config file not found: {config_path}', file=sys.stderr)
-            sys.exit(1)
-        config = load_yaml(config_path)
+    for _vendor_name, _models_dir, _config_path, config, _display_prefix in vendors:
         for _code, fam in config['families'].items():
             for _sub_name, sub_data in fam.get('subfamilies', {}).items():
                 chips = sub_data.get('chips', []) if isinstance(sub_data, dict) else sub_data
                 for chip in chips:
                     all_chip_names.add(str(chip))
-        vendors.append((vendor_name, models_dir, config_path, config, display_prefix))
 
     output_dir.mkdir(parents=True, exist_ok=True)
 

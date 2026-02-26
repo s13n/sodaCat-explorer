@@ -4,20 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-sodaCat Explorer is a single-page app for browsing the [sodaCat](https://github.com/s13n/sodaCat) hardware database — register maps, chip comparison, and search across multiple vendors (ST, NXP). Pure static HTML/JS with zero runtime dependencies (no frameworks, no bundler, no npm).
+sodaCat Explorer is a single-page app for browsing the [sodaCat](https://github.com/s13n/sodaCat) hardware database — register maps, chip comparison, and search across all vendors. Pure static HTML/JS with zero runtime dependencies (no frameworks, no bundler, no npm).
 
 ## Development Commands
 
 ### Build data (required before first run)
 
 ```bash
-python3 build.py \
-  --vendor ST ../sodaCat/models/ST ../sodaCat/svd/ST/STM32.yaml STM32 \
-  --vendor NXP ../sodaCat/models/NXP ../sodaCat/svd/NXP/LPC.yaml "" \
-  --output-dir data
+python3 build.py --sodacat-dir ../sodaCat --output-dir data
 ```
 
-Requires the [sodaCat](https://github.com/s13n/sodaCat) repo cloned alongside this one, plus `pip install ruamel.yaml`. Each `--vendor` takes: `NAME MODELS_DIR CONFIG DISPLAY_PREFIX`.
+Requires the [sodaCat](https://github.com/s13n/sodaCat) repo cloned alongside this one, plus `pip install ruamel.yaml`.
 
 ### Serve locally
 
@@ -57,7 +54,7 @@ Two stylesheets: `css/main.css` (layout, typography, components) and `css/regist
 
 ### Data Pipeline (`build.py`)
 
-Multi-vendor Python script that converts sodaCat YAML models into JSON. Processes each vendor sequentially via repeatable `--vendor` CLI args. Outputs: `index.json` (family tree with vendor metadata), `blocks/*.json` (register maps), `chips/*.json` (instance info), `search-tier{1,2,3}.json` (search indices). Block path resolution follows a hierarchy: subfamily → family → shared. Chip detection uses known chip names from configs (not filename prefixes).
+Multi-vendor Python script that converts sodaCat YAML models into JSON. Auto-discovers vendors by scanning `svd/` subdirectories for config YAMLs with a `families` section; `displayPrefix` in the config is prepended to family codes. Outputs: `index.json` (family tree with vendor metadata), `blocks/*.json` (register maps), `chips/*.json` (instance info), `search-tier{1,2,3}.json` (search indices). Block path resolution follows a hierarchy: subfamily → family → shared. Chip detection uses known chip names from configs (not filename prefixes).
 
 ## Key Conventions
 

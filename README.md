@@ -1,6 +1,6 @@
 # sodaCat Explorer
 
-Interactive browser for the [sodaCat](https://github.com/s13n/sodaCat) hardware database. Browse register maps, compare chips, search across STM32 and NXP families.
+Interactive browser for the [sodaCat](https://github.com/s13n/sodaCat) hardware database. Browse register maps, compare chips, search across all supported vendors and families.
 
 Pure static HTML/JS — no frameworks, no server required.
 
@@ -28,13 +28,10 @@ Build the JSON data:
 
 ```bash
 cd sodaCat-explorer
-python3 build.py \
-  --vendor ST ../sodaCat/models/ST ../sodaCat/svd/ST/STM32.yaml STM32 \
-  --vendor NXP ../sodaCat/models/NXP ../sodaCat/svd/NXP/LPC.yaml "" \
-  --output-dir data
+python3 build.py --sodacat-dir ../sodaCat --output-dir data
 ```
 
-Each `--vendor` takes four arguments: `NAME MODELS_DIR CONFIG DISPLAY_PREFIX`. The display prefix is prepended to family codes (e.g., `STM32` + `H7` = `STM32H7`). Use `""` for vendors whose codes are already display-ready.
+Vendors are auto-discovered from `svd/` subdirectories in the sodaCat repo. Any subdirectory containing a YAML config with a `families` section is picked up automatically. The optional `displayPrefix` field in the config is prepended to family codes (e.g., `displayPrefix: STM32` + `H7` = `STM32H7`).
 
 Serve locally:
 
