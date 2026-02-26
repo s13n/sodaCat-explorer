@@ -12,6 +12,7 @@ import { renderBlock } from './views/block.js';
 import { renderRegister } from './views/register.js';
 import { renderChipDiff } from './compare/chip-diff.js';
 import { renderBlockDiff } from './compare/block-diff.js';
+import { initSidebarResize } from './sidebar-resize.js';
 
 async function init() {
   try {
@@ -30,6 +31,9 @@ async function init() {
     addRoute('/compare/chips/:a/:b', renderChipDiff);
     addRoute('/compare/blocks/:a/:b', renderBlockDiff);
     addRoute('/search', renderSearchResults);
+
+    // Init sidebar resize handle
+    initSidebarResize();
 
     // Init search
     initSearch();
