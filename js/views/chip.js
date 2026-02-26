@@ -77,7 +77,7 @@ export async function renderChip(params) {
       el('h2', {}, 'Interrupts'),
       el('span', { className: 'subtitle' }, `${irqCount} vectors`),
     ));
-    main.appendChild(renderInterruptTable(interrupts, new Set(Object.keys(instances))));
+    main.appendChild(renderInterruptTable(interrupts, instances));
   }
   const instList = Object.entries(instances).sort((a, b) => a[0].localeCompare(b[0]));
   main.appendChild(el('div', { className: 'section-header' },
