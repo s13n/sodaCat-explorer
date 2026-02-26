@@ -13,7 +13,7 @@ export async function renderChip(params) {
   const fam = findFamily(family);
   setBreadcrumb([
     { label: 'Home', hash: '#/' },
-    { label: fam ? fam.display : `STM32${family}`, hash: `#/family/${family}` },
+    { label: fam ? fam.display : family, hash: `#/family/${family}` },
     { label: sub, hash: `#/subfamily/${family}/${sub}` },
     { label: chipName },
   ]);

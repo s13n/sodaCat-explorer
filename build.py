@@ -2,9 +2,11 @@
 """Convert sodaCat YAML models to JSON for the web browser.
 
 Usage:
-    python3 website/build.py --models-dir models/ST --config svd/ST/STM32.yaml --output-dir website/data
+    python3 build.py --output-dir data \\
+      --vendor ST ../sodaCat/models/ST ../sodaCat/svd/ST/STM32.yaml STM32 \\
+      --vendor NXP ../sodaCat/models/NXP ../sodaCat/svd/NXP/LPC.yaml ""
 
-Single-pass design: each YAML file is loaded exactly once.
+Single-pass design: each YAML file is loaded exactly once per vendor.
 """
 
 import argparse
@@ -42,8 +44,8 @@ def yaml_to_json_obj(obj):
     return str(obj)
 
 
-def build_family_tree(config):
-    """Build the family hierarchy from STM32.yaml config."""
+def build_family_tree(config, vendor_name, display_prefix):
+    """Build the family hierarchy from a vendor config."""
     families = []
     for code, fam in config['families'].items():
         subfamilies = []
@@ -57,7 +59,8 @@ def build_family_tree(config):
         block_names = sorted(fam.get('blocks', {}).keys())
         families.append({
             'code': code,
-            'display': f'STM32{code}',
+            'display': f'{display_prefix}{code}' if display_prefix else code,
+            'vendor': vendor_name,
             'subfamilies': subfamilies,
             'blockCount': len(block_names),
             'chipCount': sum(len(s['chips']) for s in subfamilies),
@@ -92,31 +95,50 @@ def make_block_summary(block_obj):
 
 def main():
     parser = argparse.ArgumentParser(description='Build sodaCat web data from YAML models')
-    parser.add_argument('--models-dir', required=True, help='Path to models/ST/')
-    parser.add_argument('--config', required=True, help='Path to svd/ST/STM32.yaml')
+    parser.add_argument('--vendor', action='append', nargs=4,
+                        metavar=('NAME', 'MODELS_DIR', 'CONFIG', 'DISPLAY_PREFIX'),
+                        required=True,
+                        help='Vendor spec: NAME MODELS_DIR CONFIG DISPLAY_PREFIX (repeatable)')
     parser.add_argument('--output-dir', required=True, help='Output directory for JSON data')
     args = parser.parse_args()
 
-    models_dir = Path(args.models_dir).resolve()
-    config_path = Path(args.config).resolve()
     output_dir = Path(args.output_dir).resolve()
 
-    if not models_dir.is_dir():
-        print(f'Error: models directory not found: {models_dir}', file=sys.stderr)
-        sys.exit(1)
-    if not config_path.is_file():
-        print(f'Error: config file not found: {config_path}', file=sys.stderr)
-        sys.exit(1)
+    # Validate all vendor paths and collect chip names from configs
+    vendors = []
+    all_chip_names = set()
+    for vendor_name, models_dir_str, config_path_str, display_prefix in args.vendor:
+        models_dir = Path(models_dir_str).resolve()
+        config_path = Path(config_path_str).resolve()
+        if not models_dir.is_dir():
+            print(f'Error: models directory not found: {models_dir}', file=sys.stderr)
+            sys.exit(1)
+        if not config_path.is_file():
+            print(f'Error: config file not found: {config_path}', file=sys.stderr)
+            sys.exit(1)
+        config = load_yaml(config_path)
+        for _code, fam in config['families'].items():
+            for _sub_name, sub_data in fam.get('subfamilies', {}).items():
+                chips = sub_data.get('chips', []) if isinstance(sub_data, dict) else sub_data
+                for chip in chips:
+                    all_chip_names.add(str(chip))
+        vendors.append((vendor_name, models_dir, config_path, config, display_prefix))
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load config
-    print(f'Loading config from {config_path}...', flush=True)
-    config = load_yaml(config_path)
-    families = build_family_tree(config)
+    # Build family trees from all vendors
+    families = []
+    for vendor_name, _models_dir, _config_path, config, display_prefix in vendors:
+        families.extend(build_family_tree(config, vendor_name, display_prefix))
 
-    # ── Single pass over all YAML files ─────────────────────────────────
-    print('Scanning and converting YAML files...', flush=True)
+    # Check for duplicate family codes
+    codes = [f['code'] for f in families]
+    if len(codes) != len(set(codes)):
+        dupes = [c for c in codes if codes.count(c) > 1]
+        print(f'Error: duplicate family codes across vendors: {set(dupes)}', file=sys.stderr)
+        sys.exit(1)
+
+    # ── Process YAML files for all vendors ──────────────────────────────
 
     block_index = {}   # path -> metadata dict for index
     chip_index = {}    # path -> metadata dict for index
@@ -130,104 +152,107 @@ def main():
     blocks_out = output_dir / 'blocks'
     chips_out = output_dir / 'chips'
 
-    for root, _dirs, files in os.walk(models_dir):
-        for fname in sorted(files):
-            if not fname.endswith('.yaml'):
-                continue
+    for vendor_name, models_dir, _config_path, _config, _display_prefix in vendors:
+        print(f'Scanning {vendor_name} YAML files from {models_dir}...', flush=True)
 
-            fpath = Path(root) / fname
-            rel = fpath.relative_to(models_dir)
-            key = str(rel.with_suffix(''))
+        for root, _dirs, files in os.walk(models_dir):
+            for fname in sorted(files):
+                if not fname.endswith('.yaml'):
+                    continue
 
-            file_count += 1
-            if file_count % 100 == 0:
-                print(f'  {file_count} files processed...', flush=True)
+                fpath = Path(root) / fname
+                rel = fpath.relative_to(models_dir)
+                key = str(rel.with_suffix(''))
 
-            data = load_yaml(fpath)
-            if data is None:
-                continue
+                file_count += 1
+                if file_count % 100 == 0:
+                    print(f'  {file_count} files processed...', flush=True)
 
-            json_obj = yaml_to_json_obj(data)
-            is_chip = fname.startswith('STM32')
+                data = load_yaml(fpath)
+                if data is None:
+                    continue
 
-            if is_chip:
-                # ── Chip model ──────────────────────────────────────
-                instances = data.get('instances', {})
-                interrupts = data.get('interrupts', {})
-                chip_index[key] = {
-                    'name': str(data.get('name', fname[:-5])),
-                    'source': str(data.get('source', '')),
-                    'cpu': yaml_to_json_obj(data.get('cpu', {})),
-                    'path': key,
-                    'instanceCount': len(instances),
-                    'interruptCount': len(interrupts),
-                }
+                json_obj = yaml_to_json_obj(data)
+                is_chip = fname[:-5] in all_chip_names
 
-                # We'll resolve model paths after block_index is complete
-                # For now, store json_obj for chip conversion later
-                chip_index[key]['_json'] = json_obj
-                chip_index[key]['_rel'] = rel
-
-            else:
-                # ── Block model ─────────────────────────────────────
-                is_alias = '@derivedFrom' in data
-                if is_alias:
-                    block_index[key] = {
+                if is_chip:
+                    # ── Chip model ──────────────────────────────────
+                    instances = data.get('instances', {})
+                    interrupts = data.get('interrupts', {})
+                    chip_index[key] = {
                         'name': str(data.get('name', fname[:-5])),
-                        'derivedFrom': str(data['@derivedFrom']),
                         'source': str(data.get('source', '')),
+                        'cpu': yaml_to_json_obj(data.get('cpu', {})),
                         'path': key,
-                        'registerCount': 0,
-                        'isAlias': True,
+                        'instanceCount': len(instances),
+                        'interruptCount': len(interrupts),
                     }
+
+                    # We'll resolve model paths after block_index is complete
+                    # For now, store json_obj for chip conversion later
+                    chip_index[key]['_json'] = json_obj
+                    chip_index[key]['_rel'] = rel
+
                 else:
-                    regs = data.get('registers', [])
-                    params = data.get('params', [])
-                    block_index[key] = {
-                        'name': str(data.get('name', fname[:-5])),
-                        'description': str(data.get('description', '')),
-                        'source': str(data.get('source', '')),
-                        'path': key,
-                        'registerCount': len(regs),
-                        'paramCount': len(params),
-                        'isAlias': False,
-                    }
+                    # ── Block model ─────────────────────────────────
+                    is_alias = '@derivedFrom' in data
+                    if is_alias:
+                        block_index[key] = {
+                            'name': str(data.get('name', fname[:-5])),
+                            'derivedFrom': str(data['@derivedFrom']),
+                            'source': str(data.get('source', '')),
+                            'path': key,
+                            'registerCount': 0,
+                            'isAlias': True,
+                        }
+                    else:
+                        regs = data.get('registers', [])
+                        params = data.get('params', [])
+                        block_index[key] = {
+                            'name': str(data.get('name', fname[:-5])),
+                            'description': str(data.get('description', '')),
+                            'source': str(data.get('source', '')),
+                            'path': key,
+                            'registerCount': len(regs),
+                            'paramCount': len(params),
+                            'isAlias': False,
+                        }
 
-                    # Build search tier 2 + 3 from this block
-                    block_name = str(data.get('name', fname[:-5]))
-                    for reg in regs:
-                        reg_name = str(reg.get('name', ''))
-                        if reg_name:
-                            search_tier2.append({
-                                'type': 'register',
-                                'name': reg_name,
-                                'block': block_name,
-                                'blockPath': key,
-                            })
-                        for field in (reg.get('fields') or []):
-                            field_name = str(field.get('name', ''))
-                            if field_name:
-                                search_tier3.append({
-                                    'type': 'field',
-                                    'name': field_name,
-                                    'register': reg_name,
+                        # Build search tier 2 + 3 from this block
+                        block_name = str(data.get('name', fname[:-5]))
+                        for reg in regs:
+                            reg_name = str(reg.get('name', ''))
+                            if reg_name:
+                                search_tier2.append({
+                                    'type': 'register',
+                                    'name': reg_name,
                                     'block': block_name,
                                     'blockPath': key,
                                 })
+                            for field in (reg.get('fields') or []):
+                                field_name = str(field.get('name', ''))
+                                if field_name:
+                                    search_tier3.append({
+                                        'type': 'field',
+                                        'name': field_name,
+                                        'register': reg_name,
+                                        'block': block_name,
+                                        'blockPath': key,
+                                    })
 
-                # Write block JSON
-                out_path = blocks_out / rel.with_suffix('.json')
-                out_path.parent.mkdir(parents=True, exist_ok=True)
-                json_str = json.dumps(json_obj, separators=(',', ':'))
-                out_path.write_text(json_str)
-                block_json_count += 1
+                    # Write block JSON
+                    out_path = blocks_out / rel.with_suffix('.json')
+                    out_path.parent.mkdir(parents=True, exist_ok=True)
+                    json_str = json.dumps(json_obj, separators=(',', ':'))
+                    out_path.write_text(json_str)
+                    block_json_count += 1
 
-                # Summary for large blocks
-                if len(json_str) > SUMMARY_THRESHOLD and not is_alias:
-                    summary = make_block_summary(json_obj)
-                    summary_path = out_path.with_suffix('.summary.json')
-                    summary_path.write_text(json.dumps(summary, separators=(',', ':')))
-                    summary_count += 1
+                    # Summary for large blocks
+                    if len(json_str) > SUMMARY_THRESHOLD and not is_alias:
+                        summary = make_block_summary(json_obj)
+                        summary_path = out_path.with_suffix('.summary.json')
+                        summary_path.write_text(json.dumps(summary, separators=(',', ':')))
+                        summary_count += 1
 
     print(f'  {file_count} total files, {block_json_count} blocks, {len(chip_index)} chips', flush=True)
     print(f'  {summary_count} summary files for large blocks', flush=True)
@@ -280,7 +305,18 @@ def main():
         for sub in fam['subfamilies']:
             sub['blocks'] = subfamily_blocks.get(f'{code}/{sub["name"]}', [])
 
+    vendors_meta = []
+    for vendor_name, _models_dir, _config_path, _config, display_prefix in vendors:
+        vendor_families = [f for f in families if f['vendor'] == vendor_name]
+        vendors_meta.append({
+            'name': vendor_name,
+            'displayPrefix': display_prefix,
+            'familyCount': len(vendor_families),
+            'chipCount': sum(f['chipCount'] for f in vendor_families),
+        })
+
     index = {
+        'vendors': vendors_meta,
         'families': families,
         'sharedBlocks': shared_blocks,
         'chipIndex': {p: {k: v for k, v in m.items()}

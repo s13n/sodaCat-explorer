@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-sodaCat Explorer is a single-page app for browsing the [sodaCat](https://github.com/s13n/sodaCat) STM32 hardware database — register maps, chip comparison, and search across all STM32 families. Pure static HTML/JS with zero runtime dependencies (no frameworks, no bundler, no npm).
+sodaCat Explorer is a single-page app for browsing the [sodaCat](https://github.com/s13n/sodaCat) hardware database — register maps, chip comparison, and search across multiple vendors (ST, NXP). Pure static HTML/JS with zero runtime dependencies (no frameworks, no bundler, no npm).
 
 ## Development Commands
 
@@ -12,12 +12,12 @@ sodaCat Explorer is a single-page app for browsing the [sodaCat](https://github.
 
 ```bash
 python3 build.py \
-  --models-dir ../sodaCat/models/ST \
-  --config ../sodaCat/svd/ST/STM32.yaml \
+  --vendor ST ../sodaCat/models/ST ../sodaCat/svd/ST/STM32.yaml STM32 \
+  --vendor NXP ../sodaCat/models/NXP ../sodaCat/svd/NXP/LPC.yaml "" \
   --output-dir data
 ```
 
-Requires the [sodaCat](https://github.com/s13n/sodaCat) repo cloned alongside this one, plus `pip install ruamel.yaml`.
+Requires the [sodaCat](https://github.com/s13n/sodaCat) repo cloned alongside this one, plus `pip install ruamel.yaml`. Each `--vendor` takes: `NAME MODELS_DIR CONFIG DISPLAY_PREFIX`.
 
 ### Serve locally
 
@@ -57,7 +57,7 @@ Two stylesheets: `css/main.css` (layout, typography, components) and `css/regist
 
 ### Data Pipeline (`build.py`)
 
-Single-pass Python script that converts sodaCat YAML models into JSON. Outputs: `index.json` (family tree), `blocks/*.json` (register maps), `chips/*.json` (instance info), `search-tier{1,2,3}.json` (search indices). Block path resolution follows a hierarchy: subfamily → family → shared.
+Multi-vendor Python script that converts sodaCat YAML models into JSON. Processes each vendor sequentially via repeatable `--vendor` CLI args. Outputs: `index.json` (family tree with vendor metadata), `blocks/*.json` (register maps), `chips/*.json` (instance info), `search-tier{1,2,3}.json` (search indices). Block path resolution follows a hierarchy: subfamily → family → shared. Chip detection uses known chip names from configs (not filename prefixes).
 
 ## Key Conventions
 

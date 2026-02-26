@@ -12,13 +12,16 @@ export function renderHome() {
 
   const main = clearContent();
 
+  const vendorCount = new Set(index.families.map(f => f.vendor)).size;
   const header = el('div', { className: 'section-header' },
-    el('h1', {}, 'STM32 Hardware Database'),
+    el('h1', {}, 'Hardware Database'),
   );
   main.appendChild(header);
 
   const desc = el('p', { className: 'description' },
-    `Browse register-level hardware descriptions for ${index.families.length} STM32 families.`
+    vendorCount > 1
+      ? `Browse register-level hardware descriptions for ${index.families.length} families across ${vendorCount} vendors.`
+      : `Browse register-level hardware descriptions for ${index.families.length} families.`
   );
   main.appendChild(desc);
 
@@ -42,24 +45,32 @@ export function renderHome() {
     main.appendChild(grid);
   }
 
-  // Family grid
-  main.appendChild(el('div', { className: 'section-header' },
-    el('h2', {}, 'Families'),
-  ));
-
-  const grid = el('div', { className: 'card-grid' });
-
+  // Family grid — grouped by vendor
+  const vendorGroups = new Map();
   for (const fam of index.families) {
-    const card = el('div', { className: 'card', onClick: () => {
-      window.location.hash = `#/family/${fam.code}`;
-    }},
-      el('h3', {}, fam.display),
-      el('div', { className: 'card-stat' }, `${fam.chipCount} chips`),
-      el('div', { className: 'card-stat' }, `${fam.blockCount} block types`),
-      el('div', { className: 'card-stat' }, `${fam.subfamilies.length} subfamilies`),
-    );
-    grid.appendChild(card);
+    const v = fam.vendor || 'Other';
+    if (!vendorGroups.has(v)) vendorGroups.set(v, []);
+    vendorGroups.get(v).push(fam);
   }
 
-  main.appendChild(grid);
+  for (const [vendor, vendorFamilies] of vendorGroups) {
+    main.appendChild(el('div', { className: 'section-header' },
+      el('h2', {}, vendorGroups.size > 1 ? vendor : 'Families'),
+      el('span', { className: 'subtitle' }, `${vendorFamilies.length} families`),
+    ));
+
+    const grid = el('div', { className: 'card-grid' });
+    for (const fam of vendorFamilies) {
+      const card = el('div', { className: 'card', onClick: () => {
+        window.location.hash = `#/family/${fam.code}`;
+      }},
+        el('h3', {}, fam.display),
+        el('div', { className: 'card-stat' }, `${fam.chipCount} chips`),
+        el('div', { className: 'card-stat' }, `${fam.blockCount} block types`),
+        el('div', { className: 'card-stat' }, `${fam.subfamilies.length} subfamilies`),
+      );
+      grid.appendChild(card);
+    }
+    main.appendChild(grid);
+  }
 }

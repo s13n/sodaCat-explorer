@@ -31,7 +31,7 @@ export function openComparePanel(type, currentPath, familyCode, subName) {
             candidates.push({
               name: chip,
               path,
-              group: `STM32${fam.code}`,
+              group: fam.display,
               priority: fam.code === familyCode ? 0 : 1,
             });
           }

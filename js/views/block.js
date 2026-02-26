@@ -1,6 +1,6 @@
 // Block detail view — params, register list
 
-import { loadBlock, loadBlockSummary } from '../data.js';
+import { loadBlock, loadBlockSummary, findFamily } from '../data.js';
 import { clearContent, el, hexAddr, hexReset, accessLabel, accessClass, escapeHtml } from '../util.js';
 import { setBreadcrumb } from '../components/breadcrumb.js';
 import { renderParamTable } from '../components/param-table.js';
@@ -15,7 +15,8 @@ export async function renderBlock(params) {
   // Build breadcrumb
   const crumbs = [{ label: 'Home', hash: '#/' }];
   if (pathParts.length >= 2) {
-    crumbs.push({ label: `STM32${pathParts[0]}`, hash: `#/family/${pathParts[0]}` });
+    const fam = findFamily(pathParts[0]);
+    crumbs.push({ label: fam ? fam.display : pathParts[0], hash: `#/family/${pathParts[0]}` });
   }
   if (pathParts.length >= 3) {
     crumbs.push({ label: pathParts[1], hash: `#/subfamily/${pathParts[0]}/${pathParts[1]}` });

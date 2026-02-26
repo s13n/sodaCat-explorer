@@ -1,6 +1,6 @@
 # sodaCat Explorer
 
-Interactive browser for the [sodaCat](https://github.com/s13n/sodaCat) STM32 hardware database. Browse register maps, compare chips, search across all 18 STM32 families.
+Interactive browser for the [sodaCat](https://github.com/s13n/sodaCat) hardware database. Browse register maps, compare chips, search across STM32 and NXP families.
 
 Pure static HTML/JS — no frameworks, no server required.
 
@@ -29,10 +29,12 @@ Build the JSON data:
 ```bash
 cd sodaCat-explorer
 python3 build.py \
-  --models-dir ../sodaCat/models/ST \
-  --config ../sodaCat/svd/ST/STM32.yaml \
+  --vendor ST ../sodaCat/models/ST ../sodaCat/svd/ST/STM32.yaml STM32 \
+  --vendor NXP ../sodaCat/models/NXP ../sodaCat/svd/NXP/LPC.yaml "" \
   --output-dir data
 ```
+
+Each `--vendor` takes four arguments: `NAME MODELS_DIR CONFIG DISPLAY_PREFIX`. The display prefix is prepended to family codes (e.g., `STM32` + `H7` = `STM32H7`). Use `""` for vendors whose codes are already display-ready.
 
 Serve locally:
 
@@ -53,7 +55,7 @@ To enable Pages: go to the repo Settings → Pages → Source → "GitHub Action
 
 ## Data Pipeline
 
-`build.py` converts sodaCat's YAML models to JSON in a single pass:
+`build.py` converts sodaCat's YAML models to JSON, processing each vendor sequentially:
 
 | Output | Contents | Size |
 |--------|----------|------|

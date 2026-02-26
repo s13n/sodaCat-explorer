@@ -7,58 +7,73 @@ const treeEl = document.getElementById('sidebar-tree');
 export function buildSidebar(families) {
   treeEl.innerHTML = '';
 
+  // Group families by vendor
+  const vendorGroups = new Map();
   for (const fam of families) {
-    const familyDiv = el('div', { className: 'tree-family' });
+    const vendor = fam.vendor || 'Other';
+    if (!vendorGroups.has(vendor)) vendorGroups.set(vendor, []);
+    vendorGroups.get(vendor).push(fam);
+  }
+  const multiVendor = vendorGroups.size > 1;
 
-    // Family toggle
-    const toggle = el('button', { className: 'tree-toggle' },
-      el('span', { className: 'arrow' }, '\u25B6'),
-      ` STM32${fam.code}`
-    );
-    const children = el('div', { className: 'tree-children' });
-
-    toggle.addEventListener('click', () => {
-      toggle.classList.toggle('open');
-      children.classList.toggle('open');
-    });
-
-    // Subfamilies
-    for (const sub of fam.subfamilies) {
-      const subDiv = el('div', { className: 'tree-subfamily' });
-      const subToggle = el('button', { className: 'tree-sub-toggle' },
-        el('span', { className: 'arrow' }, '\u25B6'),
-        ` ${sub.name}`
-      );
-      const chipList = el('div', { className: 'tree-chip-list' });
-
-      subToggle.addEventListener('click', (e) => {
-        e.stopPropagation();
-        subToggle.classList.toggle('open');
-        chipList.classList.toggle('open');
-      });
-
-      // Make subfamily name clickable to navigate
-      subToggle.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        window.location.hash = `#/subfamily/${fam.code}/${sub.name}`;
-      });
-
-      for (const chip of sub.chips) {
-        const chipLink = el('a', {
-          className: 'tree-chip',
-          href: `#/chip/${fam.code}/${sub.name}/${chip}`,
-        }, chip);
-        chipList.appendChild(chipLink);
-      }
-
-      subDiv.appendChild(subToggle);
-      subDiv.appendChild(chipList);
-      children.appendChild(subDiv);
+  for (const [vendor, vendorFamilies] of vendorGroups) {
+    if (multiVendor) {
+      treeEl.appendChild(el('div', { className: 'tree-vendor-header' }, vendor));
     }
 
-    familyDiv.appendChild(toggle);
-    familyDiv.appendChild(children);
-    treeEl.appendChild(familyDiv);
+    for (const fam of vendorFamilies) {
+      const familyDiv = el('div', { className: 'tree-family' });
+
+      // Family toggle
+      const toggle = el('button', { className: 'tree-toggle' },
+        el('span', { className: 'arrow' }, '\u25B6'),
+        ` ${fam.display}`
+      );
+      const children = el('div', { className: 'tree-children' });
+
+      toggle.addEventListener('click', () => {
+        toggle.classList.toggle('open');
+        children.classList.toggle('open');
+      });
+
+      // Subfamilies
+      for (const sub of fam.subfamilies) {
+        const subDiv = el('div', { className: 'tree-subfamily' });
+        const subToggle = el('button', { className: 'tree-sub-toggle' },
+          el('span', { className: 'arrow' }, '\u25B6'),
+          ` ${sub.name}`
+        );
+        const chipList = el('div', { className: 'tree-chip-list' });
+
+        subToggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          subToggle.classList.toggle('open');
+          chipList.classList.toggle('open');
+        });
+
+        // Make subfamily name clickable to navigate
+        subToggle.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          window.location.hash = `#/subfamily/${fam.code}/${sub.name}`;
+        });
+
+        for (const chip of sub.chips) {
+          const chipLink = el('a', {
+            className: 'tree-chip',
+            href: `#/chip/${fam.code}/${sub.name}/${chip}`,
+          }, chip);
+          chipList.appendChild(chipLink);
+        }
+
+        subDiv.appendChild(subToggle);
+        subDiv.appendChild(chipList);
+        children.appendChild(subDiv);
+      }
+
+      familyDiv.appendChild(toggle);
+      familyDiv.appendChild(children);
+      treeEl.appendChild(familyDiv);
+    }
   }
 }
 

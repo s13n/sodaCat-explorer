@@ -43,8 +43,8 @@ jobs:
       - name: Build JSON data
         run: |
           python3 build.py \
-            --models-dir sodaCat/models/ST \
-            --config sodaCat/svd/ST/STM32.yaml \
+            --vendor ST sodaCat/models/ST sodaCat/svd/ST/STM32.yaml STM32 \
+            --vendor NXP sodaCat/models/NXP sodaCat/svd/NXP/LPC.yaml "" \
             --output-dir data
 
       - name: Prepare site
