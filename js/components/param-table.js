@@ -9,6 +9,7 @@ export function renderParamTable(params) {
       el('th', {}, 'Name'),
       el('th', {}, 'Type'),
       el('th', {}, 'Default'),
+      el('th', {}, 'Max'),
       el('th', {}, 'Description'),
     ));
   table.appendChild(thead);
@@ -19,6 +20,7 @@ export function renderParamTable(params) {
       el('td', { className: 'param-name' }, p.name),
       el('td', { className: 'param-type' }, p.type || ''),
       el('td', { className: 'mono' }, p.default != null ? String(p.default) : '\u2014'),
+      el('td', { className: 'mono' }, p.max != null ? String(p.max) : '\u2014'),
       el('td', {}, p.description || ''),
     ));
   }
