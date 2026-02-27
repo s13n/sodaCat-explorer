@@ -161,17 +161,17 @@ export async function renderRegister(params) {
   }
 
   // Navigation: prev/next register (within cluster if applicable)
-  const navPrefix = cluster ? `${cluster.name}/` : '';
+  const navPrefix = cluster ? `${encodeURIComponent(cluster.name)}/` : '';
   const regIdx = navRegs.indexOf(reg);
   const nav = el('div', { className: 'btn-group', style: { marginTop: '24px' } });
   if (regIdx > 0) {
     const prev = navRegs[regIdx - 1];
-    nav.appendChild(el('a', { className: 'btn', href: `#/block/${path}/reg/${navPrefix}${prev.name}` },
+    nav.appendChild(el('a', { className: 'btn', href: `#/block/${path}/reg/${navPrefix}${encodeURIComponent(prev.name)}` },
       `\u2190 ${prev.name}`));
   }
   if (regIdx < navRegs.length - 1) {
     const next = navRegs[regIdx + 1];
-    nav.appendChild(el('a', { className: 'btn', href: `#/block/${path}/reg/${navPrefix}${next.name}` },
+    nav.appendChild(el('a', { className: 'btn', href: `#/block/${path}/reg/${navPrefix}${encodeURIComponent(next.name)}` },
       `${next.name} \u2192`));
   }
   main.appendChild(nav);

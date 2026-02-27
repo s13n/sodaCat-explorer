@@ -146,7 +146,7 @@ export async function renderBlock(params) {
         tbody.appendChild(el('tr', {
           className: 'clickable',
           onClick: () => {
-            window.location.hash = `#/block/${path}/reg/${reg.name}/${sub.name}`;
+            window.location.hash = `#/block/${path}/reg/${encodeURIComponent(reg.name)}/${encodeURIComponent(sub.name)}`;
           },
         },
           el('td', { className: 'mono' }, `+${fmtOffset(sub.addressOffset)}`),
@@ -171,7 +171,7 @@ export async function renderBlock(params) {
       const row = el('tr', {
         className: 'clickable',
         onClick: () => {
-          window.location.hash = `#/block/${path}/reg/${reg.name}`;
+          window.location.hash = `#/block/${path}/reg/${encodeURIComponent(reg.name)}`;
         },
       },
         el('td', { className: 'mono' }, fmtOffset(reg.addressOffset)),

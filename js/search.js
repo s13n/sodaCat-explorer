@@ -73,11 +73,15 @@ function resultHash(item) {
     case 'chip': return `#/chip/${item.path}`;
     case 'block': return `#/block/${item.path}`;
     case 'register': {
-      const regPart = item.cluster ? `${item.cluster}/${item.name}` : item.name;
+      const regPart = item.cluster
+        ? `${encodeURIComponent(item.cluster)}/${encodeURIComponent(item.name)}`
+        : encodeURIComponent(item.name);
       return `#/block/${item.blockPath}/reg/${regPart}`;
     }
     case 'field': {
-      const regPart = item.cluster ? `${item.cluster}/${item.register}` : item.register;
+      const regPart = item.cluster
+        ? `${encodeURIComponent(item.cluster)}/${encodeURIComponent(item.register)}`
+        : encodeURIComponent(item.register);
       return `#/block/${item.blockPath}/reg/${regPart}`;
     }
     default: return '#/';
