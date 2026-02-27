@@ -15,6 +15,7 @@ export function renderFamily(params) {
 
   setBreadcrumb([
     { label: 'Home', hash: '#/' },
+    { label: fam.vendor, hash: `#/vendor/${fam.vendor}` },
     { label: fam.display },
   ]);
 

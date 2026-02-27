@@ -5,6 +5,7 @@ import { addRoute, startRouter } from './router.js';
 import { buildSidebar } from './sidebar.js';
 import { initSearch, renderSearchResults } from './search.js';
 import { renderHome } from './views/home.js';
+import { renderVendor } from './views/vendor.js';
 import { renderFamily } from './views/family.js';
 import { renderSubfamily } from './views/subfamily.js';
 import { renderChip } from './views/chip.js';
@@ -23,6 +24,7 @@ async function init() {
 
     // Register routes
     addRoute('/', renderHome);
+    addRoute('/vendor/:name', renderVendor);
     addRoute('/family/:code', renderFamily);
     addRoute('/subfamily/:family/:sub', renderSubfamily);
     addRoute('/chip/:family/:sub/:chip', renderChip);

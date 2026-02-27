@@ -18,7 +18,10 @@ export function buildSidebar(families) {
 
   for (const [vendor, vendorFamilies] of vendorGroups) {
     if (multiVendor) {
-      treeEl.appendChild(el('div', { className: 'tree-vendor-header' }, vendor));
+      treeEl.appendChild(el('a', {
+        className: 'tree-vendor-header',
+        href: `#/vendor/${vendor}`,
+      }, vendor));
     }
 
     for (const fam of vendorFamilies) {

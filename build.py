@@ -229,6 +229,7 @@ def main():
                             'path': key,
                             'registerCount': 0,
                             'isAlias': True,
+                            'vendor': vendor_name,
                         }
                     else:
                         regs = data.get('registers', [])
@@ -245,6 +246,7 @@ def main():
                             'registerCount': reg_count,
                             'paramCount': len(params),
                             'isAlias': False,
+                            'vendor': vendor_name,
                         }
 
                         # Build search tier 2 + 3 from this block
@@ -339,14 +341,14 @@ def main():
     # ── Build index.json ────────────────────────────────────────────────
     print('Building index.json...', flush=True)
 
-    shared_blocks = []
+    vendor_shared = {}
     family_blocks = {}
     subfamily_blocks = {}
 
     for path, meta in sorted(block_index.items()):
         parts = path.split('/')
         if len(parts) == 1:
-            shared_blocks.append(meta)
+            vendor_shared.setdefault(meta['vendor'], []).append(meta)
         elif len(parts) == 2:
             family_blocks.setdefault(parts[0], []).append(meta)
         elif len(parts) == 3:
@@ -366,12 +368,12 @@ def main():
             'displayPrefix': display_prefix,
             'familyCount': len(vendor_families),
             'chipCount': sum(f['chipCount'] for f in vendor_families),
+            'sharedBlocks': vendor_shared.get(vendor_name, []),
         })
 
     index = {
         'vendors': vendors_meta,
         'families': families,
-        'sharedBlocks': shared_blocks,
         'chipIndex': {p: {k: v for k, v in m.items()}
                       for p, m in sorted(chip_index.items())},
     }

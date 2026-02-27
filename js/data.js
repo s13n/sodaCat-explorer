@@ -75,6 +75,11 @@ export async function loadSearchTier3() {
   return fetchJson('data/search-tier3.json');
 }
 
+export function findVendor(name) {
+  if (!indexData) return null;
+  return indexData.vendors.find(v => v.name === name);
+}
+
 export function findFamily(code) {
   if (!indexData) return null;
   return indexData.families.find(f => f.code === code);
@@ -113,9 +118,11 @@ export function resolveBlockPath(modelName, familyCode, subName) {
       if (b.name === modelName) return b.path;
     }
   }
-  // Check shared
-  for (const b of (indexData.sharedBlocks || [])) {
-    if (b.name === modelName) return b.path;
+  // Check shared blocks across all vendors
+  for (const v of (indexData.vendors || [])) {
+    for (const b of (v.sharedBlocks || [])) {
+      if (b.name === modelName) return b.path;
+    }
   }
   return modelName;
 }
