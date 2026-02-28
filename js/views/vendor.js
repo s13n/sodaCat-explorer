@@ -28,26 +28,6 @@ export function renderVendor(params) {
     el('span', { className: 'subtitle' }, `${vendor.familyCount} families, ${vendor.chipCount} chips`),
   ));
 
-  // Shared blocks
-  const sharedBlocks = vendor.sharedBlocks || [];
-  if (sharedBlocks.length > 0) {
-    main.appendChild(el('div', { className: 'section-header' },
-      el('h2', {}, 'Shared Blocks'),
-      el('span', { className: 'subtitle' }, `${sharedBlocks.length} blocks shared across families`),
-    ));
-    const blockGrid = el('div', { className: 'block-grid' });
-    for (const block of sharedBlocks) {
-      blockGrid.appendChild(el('a', {
-        className: 'block-item',
-        href: `#/block/${block.path}`,
-      },
-        el('div', { className: 'block-name' }, block.name),
-        el('div', { className: 'block-desc' }, block.description || `${block.registerCount} registers`),
-      ));
-    }
-    main.appendChild(blockGrid);
-  }
-
   // Families
   const vendorFamilies = index.families.filter(f => f.vendor === name);
   main.appendChild(el('div', { className: 'section-header' },
@@ -67,4 +47,24 @@ export function renderVendor(params) {
     ));
   }
   main.appendChild(grid);
+
+  // Shared blocks
+  const sharedBlocks = vendor.sharedBlocks || [];
+  if (sharedBlocks.length > 0) {
+    main.appendChild(el('div', { className: 'section-header' },
+      el('h2', {}, 'Shared Blocks'),
+      el('span', { className: 'subtitle' }, `${sharedBlocks.length} blocks shared across families`),
+    ));
+    const blockGrid = el('div', { className: 'block-grid' });
+    for (const block of sharedBlocks) {
+      blockGrid.appendChild(el('a', {
+        className: 'block-item',
+        href: `#/block/${block.path}`,
+      },
+        el('div', { className: 'block-name' }, block.name),
+        el('div', { className: 'block-desc' }, block.description || `${block.registerCount} registers`),
+      ));
+    }
+    main.appendChild(blockGrid);
+  }
 }
