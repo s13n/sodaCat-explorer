@@ -1,6 +1,6 @@
 // Subfamily view — chips + subfamily-specific blocks
 
-import { findFamily, findSubfamily } from '../data.js';
+import { findFamily, findSubfamily, findVendor } from '../data.js';
 import { clearContent, el } from '../util.js';
 import { setBreadcrumb } from '../components/breadcrumb.js';
 
@@ -85,6 +85,31 @@ export function renderSubfamily(params) {
 
     const blockGrid = el('div', { className: 'block-grid' });
     for (const block of familyBlocks) {
+      const item = el('a', {
+        className: 'block-item',
+        href: `#/block/${block.path}`,
+      },
+        el('div', { className: 'block-name' }, block.name),
+        el('div', { className: 'block-desc' },
+          block.isAlias ? `\u2192 ${block.derivedFrom}` :
+          (block.description || `${block.registerCount} registers`)),
+      );
+      blockGrid.appendChild(item);
+    }
+    main.appendChild(blockGrid);
+  }
+
+  // Shared (vendor-level) blocks
+  const vendor = findVendor(fam.vendor);
+  const sharedBlocks = vendor ? (vendor.sharedBlocks || []) : [];
+  if (sharedBlocks.length > 0) {
+    main.appendChild(el('div', { className: 'section-header' },
+      el('h2', {}, 'Shared Blocks'),
+      el('span', { className: 'subtitle' }, `${sharedBlocks.length} blocks from ${vendor.name}`),
+    ));
+
+    const blockGrid = el('div', { className: 'block-grid' });
+    for (const block of sharedBlocks) {
       const item = el('a', {
         className: 'block-item',
         href: `#/block/${block.path}`,
