@@ -27,14 +27,15 @@ export function buildSidebar(families) {
     for (const fam of vendorFamilies) {
       const familyDiv = el('div', { className: 'tree-family' });
 
-      // Family toggle
-      const toggle = el('button', { className: 'tree-toggle' },
-        el('span', { className: 'arrow' }, '\u25B6'),
-        ` ${fam.display}`
-      );
+      // Family row: arrow toggles children, label navigates
+      const toggle = el('div', { className: 'tree-toggle' });
+      const arrow = el('span', { className: 'arrow' }, '\u25B6');
+      const label = el('a', { className: 'tree-label', href: `#/family/${fam.code}` }, fam.display);
+      toggle.appendChild(arrow);
+      toggle.appendChild(label);
       const children = el('div', { className: 'tree-children' });
 
-      toggle.addEventListener('click', () => {
+      arrow.addEventListener('click', () => {
         toggle.classList.toggle('open');
         children.classList.toggle('open');
       });
@@ -42,22 +43,17 @@ export function buildSidebar(families) {
       // Subfamilies
       for (const sub of fam.subfamilies) {
         const subDiv = el('div', { className: 'tree-subfamily' });
-        const subToggle = el('button', { className: 'tree-sub-toggle' },
-          el('span', { className: 'arrow' }, '\u25B6'),
-          ` ${sub.name}`
-        );
+        const subToggle = el('div', { className: 'tree-sub-toggle' });
+        const subArrow = el('span', { className: 'arrow' }, '\u25B6');
+        const subLabel = el('a', { className: 'tree-label', href: `#/subfamily/${fam.code}/${sub.name}` }, sub.name);
+        subToggle.appendChild(subArrow);
+        subToggle.appendChild(subLabel);
         const chipList = el('div', { className: 'tree-chip-list' });
 
-        subToggle.addEventListener('click', (e) => {
+        subArrow.addEventListener('click', (e) => {
           e.stopPropagation();
           subToggle.classList.toggle('open');
           chipList.classList.toggle('open');
-        });
-
-        // Make subfamily name clickable to navigate
-        subToggle.addEventListener('dblclick', (e) => {
-          e.stopPropagation();
-          window.location.hash = `#/subfamily/${fam.code}/${sub.name}`;
         });
 
         for (const chip of sub.chips) {
