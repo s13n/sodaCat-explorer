@@ -169,8 +169,6 @@ def main():
     chip_index = {}    # path -> metadata dict for index
     search_tier2 = []  # register entries
     search_tier3 = []  # field entries
-    block_json_count = 0
-    summary_count = 0
     chip_json_count = 0
     file_count = 0
 
@@ -295,25 +293,15 @@ def main():
                                             'blockPath': key,
                                         })
 
-                    # Write block JSON
-                    out_path = blocks_out / rel.with_suffix('.json')
-                    out_path.parent.mkdir(parents=True, exist_ok=True)
-                    json_str = json.dumps(json_obj, separators=(',', ':'))
-                    out_path.write_text(json_str)
-                    block_json_count += 1
+                    # Defer writing to inject usedIn from chip instances
+                    block_index[key]['_json'] = json_obj
+                    block_index[key]['_rel'] = rel
 
-                    # Summary for large blocks
-                    if len(json_str) > SUMMARY_THRESHOLD and not is_alias:
-                        summary = make_block_summary(json_obj)
-                        summary_path = out_path.with_suffix('.summary.json')
-                        summary_path.write_text(json.dumps(summary, separators=(',', ':')))
-                        summary_count += 1
-
-    print(f'  {file_count} total files, {block_json_count} blocks, {len(chip_index)} chips', flush=True)
-    print(f'  {summary_count} summary files for large blocks', flush=True)
+    print(f'  {file_count} total files, {len(block_index)} blocks, {len(chip_index)} chips', flush=True)
 
     # ── Write chip JSON (needs complete block_index for path resolution) ─
     print('Writing chip JSON files...', flush=True)
+    block_usage = {}  # block path -> list of chip usage entries
     for key, meta in chip_index.items():
         json_obj = meta.pop('_json')
         rel = meta.pop('_rel')
@@ -327,6 +315,18 @@ def main():
             resolved = resolve_model_path(model_name, family_code, subfamily_name, block_index)
             if resolved:
                 inst['modelPath'] = resolved
+                # Collect reverse reference for block usage
+                addr = inst.get('baseAddress')
+                entry = {
+                    'chip': meta['name'],
+                    'chipPath': key,
+                    'instance': inst_name,
+                    'address': f'0x{addr:08X}' if isinstance(addr, int) else '',
+                }
+                params = inst.get('parameters', [])
+                if params:
+                    entry['parameters'] = params
+                block_usage.setdefault(resolved, []).append(entry)
             addr = inst.get('baseAddress')
             if isinstance(addr, int):
                 inst['baseAddressHex'] = f'0x{addr:08X}'
@@ -337,6 +337,37 @@ def main():
         chip_json_count += 1
 
     print(f'  {chip_json_count} chip files written', flush=True)
+
+    # ── Write block JSON files (deferred to inject usedIn) ────────────
+    print('Writing block JSON files...', flush=True)
+    for usages in block_usage.values():
+        usages.sort(key=lambda u: (u['chip'], u['instance']))
+
+    block_json_count = 0
+    summary_count = 0
+    for key, meta in sorted(block_index.items()):
+        json_obj = meta.pop('_json', None)
+        rel = meta.pop('_rel', None)
+        if json_obj is None:
+            continue  # alias — no JSON to write
+
+        usages = block_usage.get(key, [])
+        if usages:
+            json_obj['usedIn'] = usages
+
+        out_path = blocks_out / rel.with_suffix('.json')
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        json_str = json.dumps(json_obj, separators=(',', ':'))
+        out_path.write_text(json_str)
+        block_json_count += 1
+
+        if len(json_str) > SUMMARY_THRESHOLD:
+            summary = make_block_summary(json_obj)
+            summary_path = out_path.with_suffix('.summary.json')
+            summary_path.write_text(json.dumps(summary, separators=(',', ':')))
+            summary_count += 1
+
+    print(f'  {block_json_count} block files, {summary_count} summaries', flush=True)
 
     # ── Build index.json ────────────────────────────────────────────────
     print('Building index.json...', flush=True)

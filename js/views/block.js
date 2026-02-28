@@ -216,4 +216,41 @@ export async function renderBlock(params) {
   }
   table.appendChild(tbody);
   main.appendChild(table);
+
+  // Used in (which chips use this block)
+  const usedIn = data.usedIn || [];
+  if (usedIn.length > 0) {
+    const chipSet = new Set(usedIn.map(u => u.chipPath));
+    main.appendChild(el('div', { className: 'section-header' },
+      el('h2', {}, 'Used in'),
+      el('span', { className: 'subtitle' }, `${chipSet.size} chips, ${usedIn.length} instances`),
+    ));
+
+    const usedTable = el('table', { className: 'data-table' });
+    usedTable.appendChild(el('thead', {},
+      el('tr', {},
+        el('th', {}, 'Chip'),
+        el('th', {}, 'Instance'),
+        el('th', {}, 'Base Address'),
+        el('th', {}, 'Parameters'),
+      )));
+
+    const usedBody = el('tbody');
+    for (const u of usedIn) {
+      const paramsStr = (u.parameters || []).map(p => `${p.name}=${p.value}`).join(', ');
+      usedBody.appendChild(el('tr', {
+        className: 'clickable',
+        onClick: () => { window.location.hash = `#/chip/${u.chipPath}`; },
+      },
+        el('td', {},
+          el('a', { href: `#/chip/${u.chipPath}` }, u.chip)),
+        el('td', { className: 'mono' }, u.instance),
+        el('td', { className: 'mono' }, u.address),
+        el('td', { className: 'mono', style: { fontSize: '12px', color: 'var(--text-muted)' } },
+          paramsStr || '\u2014'),
+      ));
+    }
+    usedTable.appendChild(usedBody);
+    main.appendChild(usedTable);
+  }
 }
