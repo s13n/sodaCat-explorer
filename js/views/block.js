@@ -1,6 +1,6 @@
 // Block detail view — params, register list
 
-import { loadBlock, loadBlockSummary, findFamily } from '../data.js';
+import { loadBlock, loadBlockSummary, findFamily, resolveBlockPath } from '../data.js';
 import { clearContent, el, hexAddr, hexReset, accessLabel, accessClass, escapeHtml } from '../util.js';
 import { setBreadcrumb } from '../components/breadcrumb.js';
 import { renderParamTable } from '../components/param-table.js';
@@ -47,12 +47,16 @@ export async function renderBlock(params) {
   // Handle derivedFrom aliases
   if (data.derivedFrom || data['@derivedFrom']) {
     const target = data.derivedFrom || data['@derivedFrom'];
+    // Resolve target name to full block path using current block's family/subfamily context
+    const familyCode = pathParts.length >= 2 ? pathParts[0] : '';
+    const subName = pathParts.length >= 3 ? pathParts[1] : '';
+    const targetPath = resolveBlockPath(target, familyCode, subName);
     main.appendChild(el('div', { className: 'section-header' },
       el('h1', {}, data.name || blockName),
     ));
     main.appendChild(el('p', { className: 'description' },
       'This block is an alias of ',
-      el('a', { href: `#/block/${target}` }, target),
+      el('a', { href: `#/block/${targetPath}` }, target),
       '. The register map is identical.',
     ));
     if (data.source) {
