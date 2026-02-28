@@ -92,6 +92,30 @@ export async function renderBlock(params) {
     main.appendChild(renderParamTable(params_list));
   }
 
+  // Interrupts
+  const interrupts = data.interrupts || [];
+  if (interrupts.length > 0) {
+    main.appendChild(el('div', { className: 'section-header' },
+      el('h2', {}, 'Interrupts'),
+    ));
+    const irqTable = el('table', { className: 'data-table' });
+    const irqHead = el('thead', {},
+      el('tr', {},
+        el('th', {}, 'Signal'),
+        el('th', {}, 'Description'),
+      ));
+    irqTable.appendChild(irqHead);
+    const irqBody = el('tbody');
+    for (const irq of interrupts) {
+      irqBody.appendChild(el('tr', {},
+        el('td', { className: 'mono' }, irq.name),
+        el('td', {}, irq.description || ''),
+      ));
+    }
+    irqTable.appendChild(irqBody);
+    main.appendChild(irqTable);
+  }
+
   // Registers
   const registers = data.registers || [];
   const regCount = registers.reduce((n, r) =>
