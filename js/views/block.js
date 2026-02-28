@@ -226,19 +226,33 @@ export async function renderBlock(params) {
       el('span', { className: 'subtitle' }, `${chipSet.size} chips, ${usedIn.length} instances`),
     ));
 
+    // Collect unique parameter names across all instances
+    const paramNames = [];
+    const paramSet = new Set();
+    for (const u of usedIn) {
+      for (const p of (u.parameters || [])) {
+        if (!paramSet.has(p.name)) {
+          paramSet.add(p.name);
+          paramNames.push(p.name);
+        }
+      }
+    }
+
     const usedTable = el('table', { className: 'data-table' });
-    usedTable.appendChild(el('thead', {},
-      el('tr', {},
-        el('th', {}, 'Chip'),
-        el('th', {}, 'Instance'),
-        el('th', {}, 'Base Address'),
-        el('th', {}, 'Parameters'),
-      )));
+    const headerRow = el('tr', {},
+      el('th', {}, 'Chip'),
+      el('th', {}, 'Instance'),
+      el('th', {}, 'Base Address'),
+    );
+    for (const name of paramNames) {
+      headerRow.appendChild(el('th', {}, name));
+    }
+    usedTable.appendChild(el('thead', {}, headerRow));
 
     const usedBody = el('tbody');
     for (const u of usedIn) {
-      const paramsStr = (u.parameters || []).map(p => `${p.name}=${p.value}`).join(', ');
-      usedBody.appendChild(el('tr', {
+      const paramMap = new Map((u.parameters || []).map(p => [p.name, p.value]));
+      const row = el('tr', {
         className: 'clickable',
         onClick: () => { window.location.hash = `#/chip/${u.chipPath}`; },
       },
@@ -246,9 +260,13 @@ export async function renderBlock(params) {
           el('a', { href: `#/chip/${u.chipPath}` }, u.chip)),
         el('td', { className: 'mono' }, u.instance),
         el('td', { className: 'mono' }, u.address),
-        el('td', { className: 'mono', style: { fontSize: '12px', color: 'var(--text-muted)' } },
-          paramsStr || '\u2014'),
-      ));
+      );
+      for (const name of paramNames) {
+        const val = paramMap.get(name);
+        row.appendChild(el('td', { className: 'mono', style: { fontSize: '12px', color: 'var(--text-muted)' } },
+          val != null ? String(val) : '\u2014'));
+      }
+      usedBody.appendChild(row);
     }
     usedTable.appendChild(usedBody);
     main.appendChild(usedTable);
