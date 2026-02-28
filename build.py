@@ -302,6 +302,7 @@ def main():
     # ── Write chip JSON (needs complete block_index for path resolution) ─
     print('Writing chip JSON files...', flush=True)
     block_usage = {}  # block path -> list of chip usage entries
+    subfamily_shared = {}  # "family/sub" -> set of shared block paths
     for key, meta in chip_index.items():
         json_obj = meta.pop('_json')
         rel = meta.pop('_rel')
@@ -327,6 +328,9 @@ def main():
                 if params:
                     entry['parameters'] = params
                 block_usage.setdefault(resolved, []).append(entry)
+                if '/' not in resolved:
+                    sub_key = f'{family_code}/{subfamily_name}'
+                    subfamily_shared.setdefault(sub_key, set()).add(resolved)
             addr = inst.get('baseAddress')
             if isinstance(addr, int):
                 inst['baseAddressHex'] = f'0x{addr:08X}'
@@ -388,8 +392,11 @@ def main():
     for fam in families:
         code = fam['code']
         fam['familyBlocks'] = family_blocks.get(code, [])
+        all_shared = vendor_shared.get(fam['vendor'], [])
         for sub in fam['subfamilies']:
             sub['blocks'] = subfamily_blocks.get(f'{code}/{sub["name"]}', [])
+            used = subfamily_shared.get(f'{code}/{sub["name"]}', set())
+            sub['usedSharedBlocks'] = [b for b in all_shared if b['path'] in used]
 
     vendors_meta = []
     for vendor_name, _models_dir, _config_path, _config, display_prefix in vendors:

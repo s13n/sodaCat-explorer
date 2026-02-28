@@ -1,6 +1,6 @@
 // Subfamily view — chips + subfamily-specific blocks
 
-import { findFamily, findSubfamily, findVendor } from '../data.js';
+import { findFamily, findSubfamily } from '../data.js';
 import { clearContent, el } from '../util.js';
 import { setBreadcrumb } from '../components/breadcrumb.js';
 
@@ -99,13 +99,12 @@ export function renderSubfamily(params) {
     main.appendChild(blockGrid);
   }
 
-  // Shared (vendor-level) blocks
-  const vendor = findVendor(fam.vendor);
-  const sharedBlocks = vendor ? (vendor.sharedBlocks || []) : [];
+  // Shared (vendor-level) blocks used by this subfamily
+  const sharedBlocks = subfam.usedSharedBlocks || [];
   if (sharedBlocks.length > 0) {
     main.appendChild(el('div', { className: 'section-header' },
       el('h2', {}, 'Shared Blocks'),
-      el('span', { className: 'subtitle' }, `${sharedBlocks.length} blocks from ${vendor.name}`),
+      el('span', { className: 'subtitle' }, `${sharedBlocks.length} blocks`),
     ));
 
     const blockGrid = el('div', { className: 'block-grid' });
