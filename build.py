@@ -75,12 +75,12 @@ def build_family_tree(config, vendor_name, display_prefix):
     return families
 
 
-def resolve_model_path(model_name, family_code, subfamily_name, block_index):
+def resolve_model_path(model_name, family_code, subfamily_name, vendor_name, block_index):
     """Resolve a model name to its block path."""
     for candidate in [
         f'{family_code}/{subfamily_name}/{model_name}',
         f'{family_code}/{model_name}',
-        model_name,
+        f'{vendor_name}/{model_name}',
     ]:
         if candidate in block_index:
             return candidate
@@ -194,6 +194,9 @@ def main():
                 fpath = Path(root) / fname
                 rel = fpath.relative_to(models_dir)
                 key = str(rel.with_suffix(''))
+                # Prefix vendor-level (shared) blocks with vendor name
+                if '/' not in key:
+                    key = f'{vendor_name}/{key}'
 
                 file_count += 1
                 if file_count % 100 == 0:
@@ -215,6 +218,7 @@ def main():
                         'source': str(data.get('source', '')),
                         'cpu': yaml_to_json_obj(data.get('cpu', {})),
                         'path': key,
+                        'vendor': vendor_name,
                         'instanceCount': len(instances),
                         'interruptCount': len(interrupts),
                     }
@@ -325,7 +329,7 @@ def main():
         instances = json_obj.get('instances', {})
         for inst_name, inst in instances.items():
             model_name = inst.get('model', '')
-            resolved = resolve_model_path(model_name, family_code, subfamily_name, block_index)
+            resolved = resolve_model_path(model_name, family_code, subfamily_name, meta['vendor'], block_index)
             if resolved:
                 inst['modelPath'] = resolved
                 # Collect reverse reference for block usage
@@ -340,7 +344,7 @@ def main():
                 if params:
                     entry['parameters'] = params
                 block_usage.setdefault(resolved, []).append(entry)
-                if '/' not in resolved:
+                if resolved == f'{meta["vendor"]}/{model_name}':
                     sub_key = f'{family_code}/{subfamily_name}'
                     subfamily_shared.setdefault(sub_key, set()).add(resolved)
             addr = inst.get('baseAddress')
@@ -352,6 +356,8 @@ def main():
         out_path.write_text(json.dumps(json_obj, separators=(',', ':')))
         chip_json_count += 1
 
+    for meta in chip_index.values():
+        meta.pop('vendor', None)
     print(f'  {chip_json_count} chip files written', flush=True)
 
     # ── Write block JSON files (deferred to inject usedIn) ────────────
@@ -363,7 +369,7 @@ def main():
     summary_count = 0
     for key, meta in sorted(block_index.items()):
         json_obj = meta.pop('_json', None)
-        rel = meta.pop('_rel', None)
+        meta.pop('_rel', None)
         if json_obj is None:
             continue  # alias — no JSON to write
 
@@ -371,7 +377,7 @@ def main():
         if usages:
             json_obj['usedIn'] = usages
 
-        out_path = blocks_out / rel.with_suffix('.json')
+        out_path = blocks_out / (key + '.json')
         out_path.parent.mkdir(parents=True, exist_ok=True)
         json_str = json.dumps(json_obj, separators=(',', ':'))
         out_path.write_text(json_str)
@@ -391,11 +397,12 @@ def main():
     vendor_shared = {}
     family_blocks = {}
     subfamily_blocks = {}
+    vendor_names = {v[0] for v in vendors}
 
     for path, meta in sorted(block_index.items()):
         parts = path.split('/')
-        if len(parts) == 1:
-            vendor_shared.setdefault(meta['vendor'], []).append(meta)
+        if len(parts) == 2 and parts[0] in vendor_names:
+            vendor_shared.setdefault(parts[0], []).append(meta)
         elif len(parts) == 2:
             family_blocks.setdefault(parts[0], []).append(meta)
         elif len(parts) == 3:

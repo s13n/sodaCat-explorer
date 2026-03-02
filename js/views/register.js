@@ -1,6 +1,6 @@
 // Register detail view — field map + enum values
 
-import { loadBlock, findFamily } from '../data.js';
+import { loadBlock, findFamily, findVendor } from '../data.js';
 import { clearContent, el, hexReset, accessLabel, accessClass, escapeHtml } from '../util.js';
 import { setBreadcrumb } from '../components/breadcrumb.js';
 import { renderRegisterMap } from '../components/register-map.js';
@@ -13,12 +13,15 @@ export async function renderRegister(params) {
 
   // Breadcrumb
   const crumbs = [{ label: 'Home', hash: '#/' }];
-  if (pathParts.length >= 2) {
-    const fam = findFamily(pathParts[0]);
-    crumbs.push({ label: fam ? fam.display : pathParts[0], hash: `#/family/${pathParts[0]}` });
-  }
-  if (pathParts.length >= 3) {
-    crumbs.push({ label: pathParts[1], hash: `#/subfamily/${pathParts[0]}/${pathParts[1]}` });
+  const fam = pathParts.length >= 2 ? findFamily(pathParts[0]) : null;
+  if (fam) {
+    crumbs.push({ label: fam.display, hash: `#/family/${pathParts[0]}` });
+    if (pathParts.length >= 3) {
+      crumbs.push({ label: pathParts[1], hash: `#/subfamily/${pathParts[0]}/${pathParts[1]}` });
+    }
+  } else if (pathParts.length >= 2) {
+    const vendor = findVendor(pathParts[0]);
+    crumbs.push({ label: vendor ? vendor.name : pathParts[0], hash: `#/vendor/${pathParts[0]}` });
   }
   crumbs.push({ label: blockName, hash: `#/block/${path}` });
   if (regName.includes('/')) {
