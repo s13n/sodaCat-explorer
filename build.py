@@ -43,6 +43,14 @@ def yaml_to_json_obj(obj):
     return str(obj)
 
 
+def sort_registers(regs):
+    """Sort registers by addressOffset, recursively for clusters."""
+    for reg in regs:
+        if 'registers' in reg:
+            sort_registers(reg['registers'])
+    regs.sort(key=lambda r: r.get('addressOffset', 0))
+
+
 def build_family_tree(config, vendor_name, display_prefix):
     """Build the family hierarchy from a vendor config."""
     families = []
@@ -292,6 +300,10 @@ def main():
                                             'block': block_name,
                                             'blockPath': key,
                                         })
+
+                    # Sort registers by offset (recursively for clusters)
+                    if 'registers' in json_obj:
+                        sort_registers(json_obj['registers'])
 
                     # Defer writing to inject usedIn from chip instances
                     block_index[key]['_json'] = json_obj
