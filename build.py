@@ -148,14 +148,17 @@ def main():
     # Auto-discover vendors from svd/ subdirectories
     vendors = discover_vendors(sodacat_dir)
 
-    # Collect chip names from all configs
+    # Collect chip names and their family/subfamily paths from all configs
     all_chip_names = set()
+    chip_route = {}  # chip_name -> "family/subfamily/chip"
     for _vendor_name, _models_dir, _config_path, config, _display_prefix in vendors:
-        for _code, fam in config['families'].items():
-            for _sub_name, sub_data in fam.get('subfamilies', {}).items():
+        for code, fam in config['families'].items():
+            for sub_name, sub_data in fam.get('subfamilies', {}).items():
                 chips = sub_data.get('chips', []) if isinstance(sub_data, dict) else sub_data
                 for chip in chips:
-                    all_chip_names.add(str(chip))
+                    chip = str(chip)
+                    all_chip_names.add(chip)
+                    chip_route[chip] = f'{code}/{sub_name}/{chip}'
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -211,10 +214,14 @@ def main():
 
                 if is_chip:
                     # ── Chip model ──────────────────────────────────
+                    chip_name = fname[:-5]
+                    if chip_name in chip_route:
+                        key = chip_route[chip_name]
+                        rel = Path(chip_route[chip_name])
                     instances = data.get('instances', {})
                     interrupts = data.get('interrupts', {})
                     chip_index[key] = {
-                        'name': str(data.get('name', fname[:-5])),
+                        'name': str(data.get('name', chip_name)),
                         'source': str(data.get('source', '')),
                         'cpu': yaml_to_json_obj(data.get('cpu', {})),
                         'path': key,
