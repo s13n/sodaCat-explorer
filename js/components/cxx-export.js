@@ -82,7 +82,7 @@ function formatFieldList(fields, type) {
  * Format a register list into struct definitions and instance declarations.
  * @returns {[string, string, number, string]} [structs, regs, size, enums]
  */
-function formatRegisterList(reglist, defaultType, padToSize, defaultSize) {
+function formatRegisterList(reglist, defaultType, padToSize, defaultSize, structPrefix = '') {
   let enums = '';
   let structs = '';
   const items = [];
@@ -91,35 +91,51 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize) {
     const addressOffset = reg.addressOffset || 0;
     const description = reg.description || '';
     const dim = reg.dim || 1;
+    // Support list-valued dim for multidimensional arrays (sodaCat extension)
+    let dimTotal, dimFmt;
+    if (Array.isArray(dim)) {
+      dimTotal = dim.reduce((a, b) => a * b, 1);
+      dimFmt = dim.map(d => `[${d}]`).join('');
+    } else {
+      dimTotal = dim;
+      dimFmt = null;
+    }
 
     if (reg.registers) {
       // Nested sub-register array (dimIncrement grouping)
       const name = (reg.name || '').replace('[%s]', '');
       const padSize = reg.dimIncrement || 0;
+      const innerPrefix = structPrefix + name + '_';
       const [subTypes, subRegs, subSize, subEnums] = formatRegisterList(
-        reg.registers, 'uint32_t', padSize, 4
+        reg.registers, 'uint32_t', padSize, 4, innerPrefix
       );
       enums += subEnums;
       structs += `\n${subTypes}\n/** ${description} */\nstruct ${name} {${subRegs}\n}; // size = ${subSize}\n`;
 
-      const names = dim > 1 ? `${name}[${dim}]` : name;
+      const names = dimFmt ? `${name}${dimFmt}` : (dimTotal > 1 ? `${name}[${dimTotal}]` : name);
       items.push({
         text: `\n\t/** ${description} */\n\tstruct ${name} ${names};`,
         offset: addressOffset,
-        size: subSize * dim,
+        size: subSize * dimTotal,
       });
     } else {
       const dimIndex = reg.dimIndex || '';
-      let name = (reg.name || '').replace('%s', '');
-      let names = name;
+      let memberName = (reg.name || '').replace('%s', '');
+      let typeName = structPrefix + memberName;
+      let names = memberName;
 
       if (dimIndex) {
         names = dimIndex.split(',').map(item =>
           (reg.name || '').replace('%s', item.trim())
         ).join(',');
-      } else if (dim > 1) {
-        name = (reg.name || '').replace('[%s]', '');
-        names = `${name}[${dim}]`;
+      } else if (dimFmt) {
+        memberName = (reg.name || '').replace('[%s]', '');
+        typeName = structPrefix + memberName;
+        names = `${memberName}${dimFmt}`;
+      } else if (dimTotal > 1) {
+        memberName = (reg.name || '').replace('[%s]', '');
+        typeName = structPrefix + memberName;
+        names = `${memberName}[${dimTotal}]`;
       }
 
       const size = reg.size || (defaultSize * 8);
@@ -128,16 +144,18 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize) {
       if (reg.fields && reg.fields.length) {
         const [fieldsTxt, fieldEnums] = formatFieldList(reg.fields, type);
         if (fieldEnums) {
-          enums += `\ninline namespace ${name}_ {${fieldEnums}} // namespace ${name}_\n`;
+          enums += `\ninline namespace ${typeName}_ {${fieldEnums}} // namespace ${typeName}_\n`;
         }
-        structs += `\n/** ${description} */\nstruct ${name} {${fieldsTxt}\n};\n`;
+        structs += `\n/** ${description} */\nstruct ${typeName} {${fieldsTxt}\n};\n`;
       }
 
-      const hwRegType = `HwReg<struct ${name}>`;
+      const hwRegType = reg.fields && reg.fields.length
+        ? `HwReg<struct ${typeName}>`
+        : type;
       items.push({
         text: `\n\t/** ${description} */\n\t${hwRegType} ${names};`,
         offset: addressOffset,
-        size: (size >> 3) * dim,
+        size: (size >> 3) * dimTotal,
       });
     }
   }
@@ -193,7 +211,7 @@ function formatIntegrationList(data) {
   for (const block of (data.addressBlocks || [])) {
     const usage = block.usage || '';
     const type = usage === 'registers'
-      ? `HwPtr<struct ${data.name}_::${data.name} volatile> `
+      ? `HwPtr<struct ${data.name} volatile> `
       : 'std::span<std::byte> ';
     const offset = block.offset ?? 0;
     const size = block.size ?? 0;
@@ -254,21 +272,19 @@ export function generatePeripheralHeader(data, blockPath) {
   out += '#include <cstdint>\n';
   out += `\nnamespace ${ns} {\n`;
 
-  out += `\ninline namespace ${name}_ {`;
+  out += `\nnamespace ${name} {`;
   if (enums) out += enums;
   out += `\n${types}`;
   out += `\n/** ${description} */`;
   out += `\nstruct ${name} {${regs}`;
-  out += `\n}; // size = ${size}`;
-  out += `\n} // inline namespace ${name}_\n`;
+  out += `\n}; // size = ${size}\n`;
 
   if (blocks || ints || params) {
     out += `\n/** Integration of peripheral in the SoC. */`;
-    out += `\nnamespace integration {`;
-    out += `\nstruct ${name} {\n${params}${ints}${blocks}};`;
-    out += `\n} // namespace integration\n`;
+    out += `\nstruct Intgr {\n${params}${ints}${blocks}};\n`;
   }
 
+  out += `} // namespace ${name}\n`;
   out += `\n} // namespace ${ns}\n`;
 
   return out;

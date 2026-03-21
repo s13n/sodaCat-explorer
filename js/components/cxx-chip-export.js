@@ -42,6 +42,8 @@ function formatParameters(params) {
     const v = p.value;
     if (typeof v === 'boolean') {
       txt += `\n\t.${p.name} = ${v ? 'true' : 'false'},`;
+    } else if (typeof v === 'string') {
+      txt += `\n\t.${p.name} = "${v}",`;
     } else {
       txt += `\n\t.${p.name} = ${v}u,`;
     }
@@ -75,6 +77,11 @@ function formatInterrupts(interrupts) {
 export function generateChipHeader(data, chipPath) {
   const ns = deriveChipNamespace(chipPath);
   const interruptOffset = data.interruptOffset || 0;
+  const interrupts = data.interrupts || {};
+  const interruptKeys = Object.keys(interrupts).map(Number).filter(n => !isNaN(n));
+  const interruptCount = interruptKeys.length
+    ? Math.max(...interruptKeys) + 1
+    : interruptOffset;
   const instances = data.instances || {};
 
   // Collect unique models for #include directives
@@ -102,7 +109,7 @@ export function generateChipHeader(data, chipPath) {
     const init = `\n\t.registers = ${addr}u`;
 
     decl += `\n/** Integration parameters for ${name} */`;
-    decl += `\nconstexpr struct ${modelNs}::integration::${inst.model} i_${name} = {`;
+    decl += `\nconstexpr struct ${modelNs}::${inst.model}::Intgr i_${name} = {`;
     decl += `${params}${ints}${init}`;
     decl += `\n};\n`;
   }
@@ -114,7 +121,8 @@ export function generateChipHeader(data, chipPath) {
   if (includes) out += includes + '\n';
   out += '#include <cstdint>\n';
   out += `\nnamespace ${ns} {\n`;
-  out += `\nconstexpr Exception interruptOffset = ${interruptOffset};\t//!< Exception number of first interrupt\n`;
+  out += `\nconstexpr Exception interruptOffset = ${interruptOffset};\t//!< Exception number of first interrupt`;
+  out += `\nconstexpr Exception interruptCount = ${interruptCount};\t//!< Total number of exceptions (interrupts + system exceptions)\n`;
   out += decl;
   out += `\n} // namespace ${ns}\n`;
 
