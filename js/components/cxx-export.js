@@ -103,7 +103,7 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
 
     if (reg.registers) {
       // Nested sub-register array (dimIncrement grouping)
-      const name = (reg.name || '').replace('[%s]', '');
+      const name = (reg.name || '').replaceAll('[%s]', '');
       const padSize = reg.dimIncrement || 0;
       const innerPrefix = structPrefix + name + '_';
       const [subTypes, subRegs, subSize, subEnums] = formatRegisterList(
@@ -129,11 +129,11 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
           (reg.name || '').replace('%s', item.trim())
         ).join(',');
       } else if (dimFmt) {
-        memberName = (reg.name || '').replace('[%s]', '');
+        memberName = (reg.name || '').replaceAll('[%s]', '');
         typeName = structPrefix + memberName;
         names = `${memberName}${dimFmt}`;
       } else if (dimTotal > 1) {
-        memberName = (reg.name || '').replace('[%s]', '');
+        memberName = (reg.name || '').replaceAll('[%s]', '');
         typeName = structPrefix + memberName;
         names = `${memberName}[${dimTotal}]`;
       }
@@ -228,7 +228,7 @@ function formatIntegrationList(data) {
   }
 
   let params = '';
-  for (const par of (data.params || data.parameters || [])) {
+  for (const par of (data.parameters || data.params || [])) {
     const desc = par.description || '';
     if (par.type === 'int' && par.max != null) {
       const bits = (32 - Math.clz32(par.max)) || 1;
@@ -279,10 +279,8 @@ export function generatePeripheralHeader(data, blockPath) {
   out += `\nstruct ${name} {${regs}`;
   out += `\n}; // size = ${size}\n`;
 
-  if (blocks || ints || params) {
-    out += `\n/** Integration of peripheral in the SoC. */`;
-    out += `\nstruct Intgr {\n${params}${ints}${blocks}};\n`;
-  }
+  out += `\n/** Integration of peripheral in the SoC. */`;
+  out += `\nstruct Intgr {\n${params}${ints}${blocks}};\n`;
 
   out += `} // namespace ${name}\n`;
   out += `\n} // namespace ${ns}\n`;
