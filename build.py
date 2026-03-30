@@ -424,16 +424,18 @@ def main():
             used = subfamily_shared.get(f'{code}/{sub["name"]}', set())
             sub['usedSharedBlocks'] = [b for b in all_shared if b['path'] in used]
 
-    vendors_meta = []
+    vendors_seen = {}
     for vendor_name, _models_dir, _config_path, _config, display_prefix in vendors:
-        vendor_families = [f for f in families if f['vendor'] == vendor_name]
-        vendors_meta.append({
-            'name': vendor_name,
-            'displayPrefix': display_prefix,
-            'familyCount': len(vendor_families),
-            'chipCount': sum(f['chipCount'] for f in vendor_families),
-            'sharedBlocks': vendor_shared.get(vendor_name, []),
-        })
+        if vendor_name not in vendors_seen:
+            vendor_families = [f for f in families if f['vendor'] == vendor_name]
+            vendors_seen[vendor_name] = {
+                'name': vendor_name,
+                'displayPrefix': display_prefix,
+                'familyCount': len(vendor_families),
+                'chipCount': sum(f['chipCount'] for f in vendor_families),
+                'sharedBlocks': vendor_shared.get(vendor_name, []),
+            }
+    vendors_meta = list(vendors_seen.values())
 
     index = {
         'vendors': vendors_meta,
