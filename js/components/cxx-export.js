@@ -7,6 +7,43 @@
 
 import { findFamily } from '../data.js';
 
+// ── Identifier sanitization ─────────────────────────────────────────────
+
+const RESERVED_NAMES = new Set([
+  // C++20 keywords
+  'alignas', 'alignof', 'and', 'and_eq', 'asm', 'auto',
+  'bitand', 'bitor', 'bool', 'break',
+  'case', 'catch', 'char', 'char8_t', 'char16_t', 'char32_t', 'class',
+  'compl', 'concept', 'const', 'consteval', 'constexpr', 'constinit',
+  'const_cast', 'continue', 'co_await', 'co_return', 'co_yield',
+  'decltype', 'default', 'delete', 'do', 'double', 'dynamic_cast',
+  'else', 'enum', 'explicit', 'export', 'extern',
+  'false', 'float', 'for', 'friend',
+  'goto',
+  'if', 'inline', 'int',
+  'long',
+  'mutable',
+  'namespace', 'new', 'noexcept', 'not', 'not_eq', 'nullptr',
+  'operator', 'or', 'or_eq',
+  'private', 'protected', 'public',
+  'register', 'reinterpret_cast', 'requires', 'return',
+  'short', 'signed', 'sizeof', 'static', 'static_assert', 'static_cast',
+  'struct', 'switch',
+  'template', 'this', 'thread_local', 'throw', 'true', 'try', 'typedef',
+  'typeid', 'typename',
+  'union', 'unsigned', 'using',
+  'virtual', 'void', 'volatile',
+  'wchar_t', 'while',
+  'xor', 'xor_eq',
+  'NULL',
+]);
+
+function safeName(name) {
+  if (!name) return name;
+  if (/^\d/.test(name)) return 'e' + name;
+  return RESERVED_NAMES.has(name) ? name + '_' : name;
+}
+
 // ── Namespace derivation ────────────────────────────────────────────────
 
 /**
@@ -29,7 +66,7 @@ function formatEnumList(enums) {
   return enums.map(e => {
     const value = e.value ?? 1;
     const desc = e.description || '';
-    return `\n\t/** ${desc} */\n\t${e.name} = ${value},`;
+    return `\n\t/** ${desc} */\n\t${safeName(e.name)} = ${value},`;
   }).join('');
 }
 
@@ -41,17 +78,18 @@ function formatEnumList(enums) {
  */
 function formatFieldList(fields, type) {
   const items = fields.map(field => {
+    const fname = safeName(field.name);
     let enumStr = '';
     if (field.enumeratedValues && field.enumeratedValues.length) {
       const enumTxt = formatEnumList(field.enumeratedValues);
       if (enumTxt) {
-        enumStr = `\ninline namespace ${field.name}_ {\nenum ${field.name} : ${type} {${enumTxt}\n};\n} // namespace ${field.name}_\n`;
+        enumStr = `\ninline namespace ${fname}_ {\nenum ${fname}_e : ${type} {${enumTxt}\n};\n} // namespace ${fname}_\n`;
       }
     }
     const width = field.bitWidth || 1;
     const desc = field.description || '';
     return {
-      text: `\n\t/** ${desc} */\n\t${type} ${field.name}:${width};`,
+      text: `\n\t/** ${desc} */\n\t${type} ${fname}:${width};`,
       offset: field.bitOffset || 0,
       width,
       enumStr,
@@ -103,7 +141,10 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
 
     if (reg.registers) {
       // Nested sub-register array (dimIncrement grouping)
-      const name = (reg.name || '').replaceAll('[%s]', '');
+      const dimIndex = reg.dimIndex || '';
+      const rawName = reg.name || '';
+      // Derive struct type name: strip [%s] or %s, drop trailing _
+      const name = rawName.replaceAll('[%s]', '').replaceAll('%s', '').replace(/_+$/, '');
       const padSize = reg.dimIncrement || 0;
       const innerPrefix = structPrefix + name + '_';
       const [subTypes, subRegs, subSize, subEnums] = formatRegisterList(
@@ -112,7 +153,19 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
       enums += subEnums;
       structs += `\n${subTypes}\n/** ${description} */\nstruct ${name} {${subRegs}\n}; // size = ${subSize}\n`;
 
-      const names = dimFmt ? `${name}${dimFmt}` : (dimTotal > 1 ? `${name}[${dimTotal}]` : name);
+      let names;
+      if (dimIndex) {
+        names = dimIndex.split(',').map(item =>
+          rawName.replace('%s', item.trim())
+        ).join(',');
+      } else if (rawName.includes('[%s]')) {
+        const dims = Array.isArray(dim) ? dim : [dim];
+        let tmp = rawName;
+        for (const d of dims) tmp = tmp.replace('[%s]', `[${d}]`);
+        names = tmp;
+      } else {
+        names = rawName;
+      }
       items.push({
         text: `\n\t/** ${description} */\n\tstruct ${name} ${names};`,
         offset: addressOffset,
@@ -120,7 +173,7 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
       });
     } else {
       const dimIndex = reg.dimIndex || '';
-      let memberName = (reg.name || '').replace('%s', '');
+      let memberName = (reg.name || '').replaceAll('%s', '');
       let typeName = structPrefix + memberName;
       let names = memberName;
 
@@ -294,7 +347,7 @@ export function generatePeripheralHeader(data, blockPath) {
  * @returns {string} C++ struct with bitfields and enums
  */
 export function generateRegisterStruct(reg) {
-  const name = reg.name || 'REG';
+  const name = safeName(reg.name || 'REG');
   const bits = reg.size || 32;
   const type = `uint${bits}_t`;
   const description = reg.description || '';
