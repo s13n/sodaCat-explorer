@@ -44,6 +44,46 @@ function safeName(name) {
   return RESERVED_NAMES.has(name) ? name + '_' : name;
 }
 
+// ── Array dimensions ────────────────────────────────────────────────────
+
+/**
+ * Determine HwArray dimensions for a register. Returns a list of [count, base]
+ * tuples (outermost first), or null if the register is not an array or uses
+ * non-numeric/non-sequential labels that HwArray can't represent.
+ */
+function parseArrayDims(reg) {
+  const dim = reg.dim;
+  if (Array.isArray(dim)) {
+    // Multi-dimensional array (sodaCat extension): always 0-based.
+    return dim.map(d => [d, 0]);
+  }
+  if (typeof dim === 'number' && dim > 1) {
+    const dimIndex = reg.dimIndex || '';
+    if (dimIndex) {
+      const tokens = String(dimIndex).split(',').map(t => t.trim());
+      const ints = tokens.map(t => /^-?\d+$/.test(t) ? parseInt(t, 10) : NaN);
+      if (ints.some(Number.isNaN)) return null;  // letter/named labels — keep flat
+      const base = ints[0];
+      const expected = ints.every((v, i) => v === base + i);
+      if (!expected) return null;  // non-sequential — keep flat
+      return [[ints.length, base]];
+    }
+    return [[dim, 0]];
+  }
+  return null;
+}
+
+/** Wrap elemType in nested HwArray<...> for each dimension. */
+function wrapArrayType(elemType, dims) {
+  for (let i = dims.length - 1; i >= 0; i--) {
+    const [count, base] = dims[i];
+    elemType = base === 0
+      ? `HwArray<${elemType}, ${count}>`
+      : `HwArray<${elemType}, ${count}, ${base}>`;
+  }
+  return elemType;
+}
+
 // ── Namespace derivation ────────────────────────────────────────────────
 
 /**
@@ -76,14 +116,15 @@ function formatEnumList(enums) {
  * Format field bitfields and their enum definitions.
  * @returns {[string, string]} [fieldsStr, enumsStr]
  */
-function formatFieldList(fields, type) {
+function formatFieldList(fields, type, sname = '') {
   const items = fields.map(field => {
     const fname = safeName(field.name);
     let enumStr = '';
     if (field.enumeratedValues && field.enumeratedValues.length) {
       const enumTxt = formatEnumList(field.enumeratedValues);
       if (enumTxt) {
-        enumStr = `\ninline namespace ${fname}_ {\nenum ${fname}_e : ${type} {${enumTxt}\n};\n} // namespace ${fname}_\n`;
+        const enumType = sname ? `${sname}_${fname}` : `${fname}_e`;
+        enumStr = `\ninline namespace ${fname}_ {\nenum ${enumType} : ${type} {${enumTxt}\n};\n} // namespace ${fname}_\n`;
       }
     }
     const width = field.bitWidth || 1;
@@ -120,7 +161,7 @@ function formatFieldList(fields, type) {
  * Format a register list into struct definitions and instance declarations.
  * @returns {[string, string, number, string]} [structs, regs, size, enums]
  */
-function formatRegisterList(reglist, defaultType, padToSize, defaultSize, structPrefix = '') {
+function formatRegisterList(reglist, defaultType, padToSize, defaultSize, structPrefix = '', blockName = '') {
   let enums = '';
   let structs = '';
   const items = [];
@@ -129,22 +170,16 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
     const addressOffset = reg.addressOffset || 0;
     const description = reg.description || '';
     const dim = reg.dim || 1;
-    // Support list-valued dim for multidimensional arrays (sodaCat extension)
-    let dimTotal, dimFmt;
-    if (Array.isArray(dim)) {
-      dimTotal = dim.reduce((a, b) => a * b, 1);
-      dimFmt = dim.map(d => `[${d}]`).join('');
-    } else {
-      dimTotal = dim;
-      dimFmt = null;
-    }
+    const dimTotal = Array.isArray(dim) ? dim.reduce((a, b) => a * b, 1) : dim;
 
     if (reg.registers) {
       // Nested sub-register array (dimIncrement grouping)
       const dimIndex = reg.dimIndex || '';
       const rawName = reg.name || '';
       // Derive struct type name: strip [%s] or %s, drop trailing _
-      const name = rawName.replaceAll('[%s]', '').replaceAll('%s', '').replace(/_+$/, '');
+      let name = rawName.replaceAll('[%s]', '').replaceAll('%s', '').replace(/_+$/, '');
+      // Disambiguate from peripheral struct name (only at top level)
+      if (!structPrefix && blockName && name === blockName) name = name + '_';
       const padSize = reg.dimIncrement || 0;
       const innerPrefix = structPrefix + name + '_';
       const [subTypes, subRegs, subSize, subEnums] = formatRegisterList(
@@ -153,60 +188,62 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
       enums += subEnums;
       structs += `\n${subTypes}\n/** ${description} */\nstruct ${name} {${subRegs}\n}; // size = ${subSize}\n`;
 
-      let names;
-      if (dimIndex) {
-        names = dimIndex.split(',').map(item =>
+      const dims = parseArrayDims(reg);
+      let line;
+      if (dims !== null) {
+        const fieldType = wrapArrayType('struct ' + name, dims);
+        const fieldName = rawName.replaceAll('[%s]', '').replaceAll('%s', '');
+        line = `\n\t/** ${description} */\n\t${fieldType} ${fieldName};`;
+      } else if (dimIndex) {
+        // Letter or named labels — keep expanded comma-separated fields.
+        const names = dimIndex.split(',').map(item =>
           rawName.replace('%s', item.trim())
         ).join(',');
-      } else if (rawName.includes('[%s]')) {
-        const dims = Array.isArray(dim) ? dim : [dim];
-        let tmp = rawName;
-        for (const d of dims) tmp = tmp.replace('[%s]', `[${d}]`);
-        names = tmp;
+        line = `\n\t/** ${description} */\n\tstruct ${name} ${names};`;
       } else {
-        names = rawName;
+        line = `\n\t/** ${description} */\n\tstruct ${name} ${rawName};`;
       }
-      items.push({
-        text: `\n\t/** ${description} */\n\tstruct ${name} ${names};`,
-        offset: addressOffset,
-        size: subSize * dimTotal,
-      });
+      items.push({ text: line, offset: addressOffset, size: subSize * dimTotal });
     } else {
       const dimIndex = reg.dimIndex || '';
-      let memberName = (reg.name || '').replaceAll('%s', '');
-      let typeName = structPrefix + memberName;
-      let names = memberName;
+      const dims = parseArrayDims(reg);
+      let memberName, typeName, names;
 
-      if (dimIndex) {
-        names = dimIndex.split(',').map(item =>
-          (reg.name || '').replace('%s', item.trim())
-        ).join(',');
-      } else if (dimFmt) {
-        memberName = (reg.name || '').replaceAll('[%s]', '');
+      if (dims === null && dimIndex) {
+        // Letter or named labels — keep expanded comma-separated fields.
+        // Disambiguate the bitfield struct name when multiple dimIndex
+        // arrays share a prefix in the same scope: include the first
+        // dimIndex token in the struct name.
+        const tokens = dimIndex.split(',').map(t => t.trim());
+        memberName = (reg.name || '').replace('%s', tokens[0]);
         typeName = structPrefix + memberName;
-        names = `${memberName}${dimFmt}`;
-      } else if (dimTotal > 1) {
-        memberName = (reg.name || '').replaceAll('[%s]', '');
+        names = tokens.map(item => (reg.name || '').replace('%s', item)).join(',');
+      } else {
+        // Single register, or HwArray-wrapped array.
+        memberName = (reg.name || '').replaceAll('[%s]', '').replaceAll('%s', '');
         typeName = structPrefix + memberName;
-        names = `${memberName}[${dimTotal}]`;
+        names = memberName;
       }
+      // Avoid clashing the bitfield struct name with the peripheral struct
+      if (!structPrefix && blockName && typeName === blockName) typeName = typeName + '_';
 
       const size = reg.size || (defaultSize * 8);
       const type = reg.dataType || `uint${size}_t`;
 
       if (reg.fields && reg.fields.length) {
-        const [fieldsTxt, fieldEnums] = formatFieldList(reg.fields, type);
+        const [fieldsTxt, fieldEnums] = formatFieldList(reg.fields, type, typeName);
         if (fieldEnums) {
           enums += `\ninline namespace ${typeName}_ {${fieldEnums}} // namespace ${typeName}_\n`;
         }
         structs += `\n/** ${description} */\nstruct ${typeName} {${fieldsTxt}\n};\n`;
       }
 
-      const hwRegType = reg.fields && reg.fields.length
+      let regType = reg.fields && reg.fields.length
         ? `HwReg<struct ${typeName}>`
         : type;
+      if (dims !== null) regType = wrapArrayType(regType, dims);
       items.push({
-        text: `\n\t/** ${description} */\n\t${hwRegType} ${names};`,
+        text: `\n\t/** ${description} */\n\t${regType} ${names};`,
         offset: addressOffset,
         size: (size >> 3) * dimTotal,
       });
@@ -240,10 +277,15 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
 
     txt += current.text;
 
-    // Close union when the next register has a different offset
-    if (inUnion && current.offset !== next.offset) {
-      inUnion = false;
-      txt += '\n\t};';
+    // Advance `pos` once per union (on close) or once per non-union
+    // register. A union of N overlapping registers occupies the space of
+    // one member; advancing per-member would over-count by (N-1)*size.
+    if (inUnion) {
+      if (current.offset !== next.offset) {
+        inUnion = false;
+        txt += '\n\t};';
+        pos += current.size;
+      }
     } else {
       pos += current.size;
     }
@@ -314,7 +356,7 @@ export function generatePeripheralHeader(data, blockPath) {
   const defaultSize = (data.size || 32) >> 3;
 
   const [types, regs, size, enums] = formatRegisterList(
-    data.registers || [], 'uint32_t', 0, defaultSize
+    data.registers || [], 'uint32_t', 0, defaultSize, '', name
   );
   const [blocks, ints, params] = formatIntegrationList(data);
 
@@ -355,7 +397,7 @@ export function generateRegisterStruct(reg) {
   let result = '';
 
   if (reg.fields && reg.fields.length) {
-    const [fieldsTxt, enumsTxt] = formatFieldList(reg.fields, type);
+    const [fieldsTxt, enumsTxt] = formatFieldList(reg.fields, type, name);
     if (enumsTxt) {
       result += `inline namespace ${name}_ {${enumsTxt}} // namespace ${name}_\n\n`;
     }

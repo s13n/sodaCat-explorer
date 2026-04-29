@@ -75,8 +75,21 @@ def build_family_tree(config, vendor_name, display_prefix):
     return families
 
 
-def resolve_model_path(model_name, family_code, subfamily_name, vendor_name, block_index):
-    """Resolve a model name to its block path."""
+def resolve_model_path(model_name, family_code, subfamily_name, vendor_name, block_index, chip_models=None):
+    """Resolve a model name to its block path.
+
+    chip_models is the optional top-level `models:` map from the chip YAML
+    (e.g. `{PL08x: ARM/PL08x}`) — used for explicit cross-manufacturer
+    overrides when the bare model name lives in a different vendor's tree.
+    """
+    # Explicit cross-vendor path supplied inline (e.g. "ARM/NVIC")
+    if '/' in model_name and model_name in block_index:
+        return model_name
+    # Per-chip model override map
+    if chip_models and model_name in chip_models:
+        override = str(chip_models[model_name])
+        if override in block_index:
+            return override
     for candidate in [
         f'{family_code}/{subfamily_name}/{model_name}',
         f'{family_code}/{model_name}',
@@ -333,10 +346,11 @@ def main():
         family_code = parts[0] if len(parts) >= 2 else ''
         subfamily_name = parts[1] if len(parts) >= 3 else ''
 
+        chip_models = json_obj.get('models', {})
         instances = json_obj.get('instances', {})
         for inst_name, inst in instances.items():
             model_name = inst.get('model', '')
-            resolved = resolve_model_path(model_name, family_code, subfamily_name, meta['vendor'], block_index)
+            resolved = resolve_model_path(model_name, family_code, subfamily_name, meta['vendor'], block_index, chip_models)
             if resolved:
                 inst['modelPath'] = resolved
                 # Collect reverse reference for block usage
