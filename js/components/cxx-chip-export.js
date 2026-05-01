@@ -52,12 +52,12 @@ function formatParameters(params) {
 }
 
 function formatInterrupts(interrupts) {
+  // Preserve chip-side YAML order; the block YAML's interrupt order is the
+  // authoritative source for designated-initializer order, and chip data
+  // is already canonical by convention.
   let txt = '';
   const seen = new Set();
-  const sorted = [...interrupts].sort((a, b) =>
-    (a.name || '').localeCompare(b.name || '')
-  );
-  for (const int of sorted) {
+  for (const int of interrupts) {
     if (!seen.has(int.name)) {
       seen.add(int.name);
       txt += `\n\t.ex${int.name} = ${int.value}u + interruptOffset,`;

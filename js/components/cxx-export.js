@@ -323,18 +323,21 @@ function formatIntegrationList(data) {
   }
 
   let params = '';
-  for (const par of (data.parameters || data.params || [])) {
+  for (const par of (data.params || [])) {
     const desc = par.description || '';
-    if (par.type === 'int' && par.max != null) {
+    const ptype = par.type || 'int';   // type: is optional; defaults to int
+    if (par.bits != null) {
+      // Explicit bit-width wins over any derivation; some authors round up
+      // (e.g. bits: 16, max: 32767) for alignment reasons.
+      params += `\tuint16_t ${par.name}:${par.bits};\t//!< ${desc}\n`;
+    } else if (ptype === 'bool') {
+      params += `\tuint16_t ${par.name}:1;\t//!< ${desc}\n`;
+    } else if (ptype === 'int' && par.max != null) {
       const bits = (32 - Math.clz32(par.max)) || 1;
       params += `\tuint16_t ${par.name}:${bits};\t//!< ${desc}\n`;
-    } else if (par.type === 'bool') {
-      params += `\tuint16_t ${par.name}:1;\t//!< ${desc}\n`;
-    } else if (par.bits) {
-      params += `\tuint16_t ${par.name}:${par.bits};\t//!< ${desc}\n`;
     } else {
-      const ptype = { string: 'const char*' }[par.type] || 'uint32_t';
-      params += `\t${ptype} ${par.name};\t//!< ${desc}\n`;
+      const ctype = { string: 'const char*' }[ptype] || 'uint32_t';
+      params += `\t${ctype} ${par.name};\t//!< ${desc}\n`;
     }
   }
 
