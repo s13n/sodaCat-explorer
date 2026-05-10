@@ -242,6 +242,13 @@ export async function renderBlock(params) {
       }
     }
 
+    // Defaults from the block model — shown when an instance uses defaults
+    // (the chip YAML omits the parameters list in that case)
+    const defaults = new Map();
+    for (const p of (data.params || [])) {
+      if (p.default != null) defaults.set(p.name, p.default);
+    }
+
     const usedTable = el('table', { className: 'data-table' });
     const headerRow = el('tr', {},
       el('th', {}, 'Chip'),
@@ -266,8 +273,15 @@ export async function renderBlock(params) {
         el('td', { className: 'mono' }, u.address),
       );
       for (const name of paramNames) {
-        const val = paramMap.get(name);
-        row.appendChild(el('td', { className: 'mono', style: { fontSize: '12px', color: 'var(--text-muted)' } },
+        let val = paramMap.get(name);
+        let isDefault = false;
+        if (val == null && defaults.has(name)) {
+          val = defaults.get(name);
+          isDefault = true;
+        }
+        const style = { fontSize: '12px', color: 'var(--text-muted)' };
+        if (isDefault) style.fontStyle = 'italic';
+        row.appendChild(el('td', { className: 'mono', style },
           val != null ? String(val) : '\u2014'));
       }
       usedBody.appendChild(row);
