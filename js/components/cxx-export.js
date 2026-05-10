@@ -73,15 +73,63 @@ function parseArrayDims(reg) {
   return null;
 }
 
-/** Wrap elemType in nested HwArray<...> for each dimension. */
-function wrapArrayType(elemType, dims) {
-  for (let i = dims.length - 1; i >= 0; i--) {
-    const [count, base] = dims[i];
-    elemType = base === 0
-      ? `HwArray<${elemType}, ${count}>`
-      : `HwArray<${elemType}, ${count}, ${base}>`;
+/**
+ * Wrap elemType in nested HwArray<...> for each dimension.
+ *
+ * idxTypes (optional) is a list aligned with `dims`: for axis k, null means
+ * "no index enum" and a string means the C++ scoped-enum type name to
+ * instantiate as the HwArray's Idx parameter. When idx is non-null, Base is
+ * emitted explicitly so the positional template-argument list reaches Idx.
+ */
+function wrapArrayType(elemType, dims, idxTypes = null) {
+  const n = dims.length;
+  for (let k = n - 1; k >= 0; k--) {
+    const [count, base] = dims[k];
+    const idx = idxTypes && k < idxTypes.length ? idxTypes[k] : null;
+    if (idx != null) {
+      elemType = `HwArray<${elemType}, ${count}, ${base}, ${idx}>`;
+    } else if (base !== 0) {
+      elemType = `HwArray<${elemType}, ${count}, ${base}>`;
+    } else {
+      elemType = `HwArray<${elemType}, ${count}>`;
+    }
   }
   return elemType;
+}
+
+/** Smallest unsigned integer type that holds [0, axisDim). */
+function indexEnumUnderlying(axisDim) {
+  if (axisDim <= 256) return 'std::uint8_t';
+  if (axisDim <= 65536) return 'std::uint16_t';
+  return 'std::uint32_t';
+}
+
+/**
+ * Return a per-axis list of enum-objects-or-null for a register/cluster.
+ * Single-object form (1D arrays) is normalised to a list of length 1.
+ */
+function normalizeIndexEnums(reg) {
+  const enums = reg.enumeratedIndices;
+  if (enums == null) return null;
+  if (Array.isArray(enums)) return enums.slice();
+  return [enums];
+}
+
+/** Emit a scoped enum-class declaration for one axis. */
+function formatIndexEnum(enumObj, axisDim) {
+  const name = enumObj.name;
+  const underlying = indexEnumUnderlying(axisDim);
+  const desc = enumObj.description || '';
+  let out = '\n';
+  if (desc) out += `/** ${desc} */\n`;
+  out += `enum class ${name} : ${underlying} {\n`;
+  for (const v of (enumObj.values || [])) {
+    const vdesc = v.description || '';
+    if (vdesc) out += `\t/** ${vdesc} */\n`;
+    out += `\t${v.name} = ${v.value},\n`;
+  }
+  out += '};\n';
+  return out;
 }
 
 // ── Namespace derivation ────────────────────────────────────────────────
@@ -172,6 +220,26 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
     const dim = reg.dim || 1;
     const dimTotal = Array.isArray(dim) ? dim.reduce((a, b) => a * b, 1) : dim;
 
+    // If the entry carries enumeratedIndices, emit one scoped-enum class
+    // declaration per axis and remember the type names so they can be
+    // threaded into the HwArray template instantiation.
+    const idxEnums = normalizeIndexEnums(reg);
+    let idxTypes = null;
+    if (idxEnums) {
+      const axisDims = Array.isArray(dim) ? dim.slice() : [dim];
+      idxTypes = [];
+      for (let axis = 0; axis < idxEnums.length; axis++) {
+        const e = idxEnums[axis];
+        if (e == null) {
+          idxTypes.push(null);
+        } else {
+          enums += formatIndexEnum(e, axisDims[axis]);
+          idxTypes.push(e.name);
+        }
+      }
+      while (idxTypes.length < axisDims.length) idxTypes.push(null);
+    }
+
     if (reg.registers) {
       // Nested sub-register array (dimIncrement grouping)
       const dimIndex = reg.dimIndex || '';
@@ -191,7 +259,7 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
       const dims = parseArrayDims(reg);
       let line;
       if (dims !== null) {
-        const fieldType = wrapArrayType('struct ' + name, dims);
+        const fieldType = wrapArrayType('struct ' + name, dims, idxTypes);
         const fieldName = rawName.replaceAll('[%s]', '').replaceAll('%s', '');
         line = `\n\t/** ${description} */\n\t${fieldType} ${fieldName};`;
       } else if (dimIndex) {
@@ -241,7 +309,7 @@ function formatRegisterList(reglist, defaultType, padToSize, defaultSize, struct
       let regType = reg.fields && reg.fields.length
         ? `HwReg<struct ${typeName}>`
         : type;
-      if (dims !== null) regType = wrapArrayType(regType, dims);
+      if (dims !== null) regType = wrapArrayType(regType, dims, idxTypes);
       items.push({
         text: `\n\t/** ${description} */\n\t${regType} ${names};`,
         offset: addressOffset,
