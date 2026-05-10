@@ -120,13 +120,19 @@ def make_block_summary(block_obj):
 
 
 def discover_vendors(sodacat_dir):
-    """Auto-discover vendors by scanning svd/ subdirectories for family configs."""
+    """Auto-discover vendors by scanning svd/ subdirectories for family configs.
+
+    Also picks up "designer-only" model directories (e.g. models/Synopsys/) that
+    have no svd/ config but hold cross-vendor shared blocks. These contribute
+    blocks but no families or chips.
+    """
     svd_dir = sodacat_dir / 'svd'
     if not svd_dir.is_dir():
         print(f'Error: svd directory not found: {svd_dir}', file=sys.stderr)
         sys.exit(1)
 
     vendors = []
+    configured = set()
     for vendor_dir in sorted(svd_dir.iterdir()):
         if not vendor_dir.is_dir():
             continue
@@ -140,11 +146,39 @@ def discover_vendors(sodacat_dir):
                     print(f'Warning: models directory not found for {vendor_name}: {models_dir}, skipping', file=sys.stderr)
                     continue
                 vendors.append((vendor_name, models_dir, yaml_file, config, display_prefix))
+                configured.add(vendor_name)
                 print(f'Discovered vendor: {vendor_name} (prefix={display_prefix!r}, config={yaml_file.name})', flush=True)
 
     if not vendors:
         print('Error: no vendors discovered (no svd/*/config.yaml with families section)', file=sys.stderr)
         sys.exit(1)
+
+    # Designer-only model directories (no svd config, no families).
+    # A directory qualifies only if at least one model YAML declares an
+    # explicit `namespace:` or `designer:` key, indicating it's a real
+    # cross-vendor shared-block target. Legacy/scratch dirs (NXP-legacy,
+    # H757, TI, …) lack these markers and are skipped.
+    models_root = sodacat_dir / 'models'
+    if models_root.is_dir():
+        for models_dir in sorted(models_root.iterdir()):
+            if not models_dir.is_dir() or models_dir.name in configured:
+                continue
+            qualifies = False
+            for yaml_file in models_dir.glob('*.yaml'):
+                # `namespace:` / `designer:` are top-level keys but can
+                # appear anywhere in the file, so scan all lines
+                with open(yaml_file) as f:
+                    for line in f:
+                        if line.startswith(('namespace:', 'designer:')):
+                            qualifies = True
+                            break
+                if qualifies:
+                    break
+            if not qualifies:
+                continue
+            empty_config = {'families': {}}
+            vendors.append((models_dir.name, models_dir, None, empty_config, ''))
+            print(f'Discovered designer-only models: {models_dir.name}', flush=True)
 
     return vendors
 
@@ -353,6 +387,11 @@ def main():
             resolved = resolve_model_path(model_name, family_code, subfamily_name, meta['vendor'], block_index, chip_models)
             if resolved:
                 inst['modelPath'] = resolved
+                # Copy the block's declared namespace so chip-export can
+                # use it directly for cross-namespace type qualification.
+                resolved_ns = block_index[resolved].get('_json', {}).get('namespace')
+                if resolved_ns:
+                    inst['modelNamespace'] = resolved_ns
                 # Collect reverse reference for block usage
                 addr = inst.get('baseAddress')
                 entry = {
