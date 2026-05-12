@@ -96,11 +96,12 @@ export async function renderBlock(params) {
     main.appendChild(renderParamTable(params_list));
   }
 
-  // Interrupts
-  const interrupts = data.interrupts || [];
-  if (interrupts.length > 0) {
+  // Outputs (formerly "interrupts" — block-level signals that may route
+  // to NVIC, DMAMUX, EXTI, etc. at the chip level)
+  const outputs = data.outputs || data.interrupts || [];
+  if (outputs.length > 0) {
     main.appendChild(el('div', { className: 'section-header' },
-      el('h2', {}, 'Interrupts'),
+      el('h2', {}, 'Outputs'),
     ));
     const irqTable = el('table', { className: 'data-table' });
     const irqHead = el('thead', {},
@@ -110,7 +111,7 @@ export async function renderBlock(params) {
       ));
     irqTable.appendChild(irqHead);
     const irqBody = el('tbody');
-    for (const irq of interrupts) {
+    for (const irq of outputs) {
       irqBody.appendChild(el('tr', {},
         el('td', { className: 'mono' }, irq.name),
         el('td', {}, irq.description || ''),

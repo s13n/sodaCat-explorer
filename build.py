@@ -20,7 +20,7 @@ SUMMARY_THRESHOLD = 50_000  # bytes — blocks larger than this also get a .summ
 
 
 def load_yaml(path):
-    yaml = YAML()
+    yaml = YAML(typ='safe', pure=True)
     yaml.width = 4096
     with open(path) as f:
         return yaml.load(f)
@@ -73,6 +73,62 @@ def build_family_tree(config, vendor_name, display_prefix):
             'chipCount': sum(len(s['chips']) for s in subfamilies),
         })
     return families
+
+
+def merge_inherits(chip_json, subfamily_index):
+    """Walk the `inherits:` chain and merge `instances` and `models` maps
+    from each ancestor. Chip's own entries take precedence over the parent.
+    """
+    visited = set()
+    node = chip_json
+    chain = []
+    while True:
+        parent_path = node.get('inherits')
+        if not parent_path or parent_path in visited:
+            break
+        visited.add(parent_path)
+        parent = subfamily_index.get(parent_path)
+        if parent is None:
+            break
+        chain.append(parent)
+        node = parent
+
+    # Walk from deepest ancestor → chip so chip's own data overrides.
+    merged_instances = {}
+    merged_models = {}
+    for ancestor in reversed(chain):
+        for k, v in (ancestor.get('instances') or {}).items():
+            merged_instances[k] = v
+        for k, v in (ancestor.get('models') or {}).items():
+            merged_models[k] = v
+    for k, v in (chip_json.get('instances') or {}).items():
+        merged_instances[k] = v
+    for k, v in (chip_json.get('models') or {}).items():
+        merged_models[k] = v
+    chip_json['instances'] = merged_instances
+    chip_json['models'] = merged_models
+
+
+def synthesize_interrupts(instances):
+    """Derive a {vector: [signal names]} map from per-instance `outputs:`.
+
+    Per the new schema, each instance carries `outputs: {signal: [dest, ...]}`
+    where destinations of the form "NVIC.<vec>" carry the absolute NVIC
+    vector index. Used to render the chip's interrupt vector table.
+    """
+    table = {}
+    for inst_name, inst in instances.items():
+        for sig, dests in (inst.get('outputs') or {}).items():
+            for dest in dests:
+                inst_pfx, sep, port = dest.partition('.')
+                if not sep or inst_pfx != 'NVIC':
+                    continue
+                try:
+                    vec = int(port)
+                except ValueError:
+                    continue
+                table.setdefault(vec, []).append(f'{inst_name}.{sig}')
+    return dict(sorted(table.items()))
 
 
 def resolve_model_path(model_name, family_code, subfamily_name, vendor_name, block_index, chip_models=None):
@@ -223,10 +279,11 @@ def main():
 
     # ── Process YAML files for all vendors ──────────────────────────────
 
-    block_index = {}   # path -> metadata dict for index
-    chip_index = {}    # path -> metadata dict for index
-    search_tier2 = []  # register entries
-    search_tier3 = []  # field entries
+    block_index = {}      # path -> metadata dict for index
+    chip_index = {}       # path -> metadata dict for index
+    subfamily_index = {}  # full path "vendor/.../name" -> raw subfamily YAML obj
+    search_tier2 = []     # register entries
+    search_tier3 = []     # field entries
     chip_json_count = 0
     file_count = 0
 
@@ -258,6 +315,13 @@ def main():
 
                 json_obj = yaml_to_json_obj(data)
                 is_chip = fname[:-5] in all_chip_names
+                # Subfamily YAMLs carry a top-level `family:` key. They're
+                # consumed via `inherits:` chains, not as standalone blocks.
+                is_subfamily = 'family' in data and not is_chip
+                if is_subfamily:
+                    full_path = f'{vendor_name}/{rel.with_suffix("")}'
+                    subfamily_index[full_path] = json_obj
+                    continue
 
                 if is_chip:
                     # ── Chip model ──────────────────────────────────
@@ -265,16 +329,14 @@ def main():
                     if chip_name in chip_route:
                         key = chip_route[chip_name]
                         rel = Path(chip_route[chip_name])
-                    instances = data.get('instances', {})
-                    interrupts = data.get('interrupts', {})
                     chip_index[key] = {
                         'name': str(data.get('name', chip_name)),
                         'source': str(data.get('source', '')),
                         'cpu': yaml_to_json_obj(data.get('cpu', {})),
                         'path': key,
                         'vendor': vendor_name,
-                        'instanceCount': len(instances),
-                        'interruptCount': len(interrupts),
+                        # instanceCount / interruptCount computed after
+                        # inherits-chain merge (subfamily_index complete).
                     }
 
                     # We'll resolve model paths after block_index is complete
@@ -380,8 +442,21 @@ def main():
         family_code = parts[0] if len(parts) >= 2 else ''
         subfamily_name = parts[1] if len(parts) >= 3 else ''
 
-        chip_models = json_obj.get('models', {})
+        # Resolve inheritance chain — merge instances/models from any
+        # subfamily YAMLs the chip inherits from.
+        merge_inherits(json_obj, subfamily_index)
+
+        # Derive the chip's interrupt vector table from per-instance outputs
+        # (new schema). Used by the explorer's IVT view; kept under the
+        # `interrupts` key for backward compatibility with chip.js.
         instances = json_obj.get('instances', {})
+        interrupts = synthesize_interrupts(instances)
+        if interrupts:
+            json_obj['interrupts'] = interrupts
+        meta['instanceCount'] = len(instances)
+        meta['interruptCount'] = len(interrupts)
+
+        chip_models = json_obj.get('models', {})
         for inst_name, inst in instances.items():
             model_name = inst.get('model', '')
             resolved = resolve_model_path(model_name, family_code, subfamily_name, meta['vendor'], block_index, chip_models)

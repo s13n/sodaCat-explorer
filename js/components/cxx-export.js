@@ -386,12 +386,12 @@ function formatIntegrationList(data) {
   }
 
   let ints = '';
-  const interrupts = [...(data.interrupts || [])].sort((a, b) =>
-    (a.name || '').localeCompare(b.name || '')
-  );
-  for (const int of interrupts) {
-    const desc = int.description || '';
-    ints += `\tException ex${int.name};\t//!< ${desc}\n`;
+  // Block schema renamed `interrupts:` → `outputs:` (sodaCat 1d8d15c5).
+  // Preserve YAML order — the Python generator now uses block-YAML order
+  // for designated-initializer compatibility.
+  for (const o of (data.outputs || data.interrupts || [])) {
+    const desc = o.description || '';
+    ints += `\tException ex${o.name};\t//!< ${desc}\n`;
   }
 
   let params = '';

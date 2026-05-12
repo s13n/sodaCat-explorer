@@ -51,16 +51,20 @@ function formatParameters(params) {
   return txt;
 }
 
-function formatInterrupts(interrupts) {
-  // Preserve chip-side YAML order; the block YAML's interrupt order is the
-  // authoritative source for designated-initializer order, and chip data
-  // is already canonical by convention.
+function formatOutputs(outputs) {
+  // Per-instance `outputs:` map {signal_name: [destination, ...]} replaced
+  // the old `interrupts: [{name, value}]` shape (sodaCat 1d8d15c5).
+  // Destinations of the form "NVIC.<vec>" carry the absolute NVIC vector
+  // index — no `+ interruptOffset` is applied at emit time.
   let txt = '';
-  const seen = new Set();
-  for (const int of interrupts) {
-    if (!seen.has(int.name)) {
-      seen.add(int.name);
-      txt += `\n\t.ex${int.name} = ${int.value}u + interruptOffset,`;
+  for (const [sig, dests] of Object.entries(outputs || {})) {
+    for (const dest of (dests || [])) {
+      const dot = dest.indexOf('.');
+      if (dot < 0) continue;
+      if (dest.slice(0, dot) !== 'NVIC') continue;
+      const vec = parseInt(dest.slice(dot + 1), 10);
+      if (Number.isNaN(vec)) continue;
+      txt += `\n\t.ex${sig} = ${vec}u,`;
     }
   }
   return txt;
@@ -105,7 +109,7 @@ export function generateChipHeader(data, chipPath) {
     // declared `namespace:` key); fall back to deriving from modelPath.
     const modelNs = inst.modelNamespace || deriveModelNamespace(inst.modelPath, ns);
     const params = formatParameters(inst.parameters || []);
-    const ints = formatInterrupts(inst.interrupts || []);
+    const ints = formatOutputs(inst.outputs);
     const addr = inst.baseAddressHex
       || `0x${(inst.baseAddress >>> 0).toString(16).toUpperCase()}`;
     const init = `\n\t.registers = ${addr}u`;
