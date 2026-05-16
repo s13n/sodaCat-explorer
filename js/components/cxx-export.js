@@ -387,11 +387,12 @@ function formatIntegrationList(data) {
 
   let ints = '';
   // Block schema renamed `interrupts:` → `outputs:` (sodaCat 1d8d15c5).
-  // Preserve YAML order — the Python generator now uses block-YAML order
-  // for designated-initializer compatibility.
+  // Intgr field type swapped to Connection (sodaCat 75ac06c2) — chip-side
+  // wiring carries the routing via the per-target route tables emitted
+  // by the chip header.
   for (const o of (data.outputs || data.interrupts || [])) {
     const desc = o.description || '';
-    ints += `\tException ex${o.name};\t//!< ${desc}\n`;
+    ints += `\tConnection conn${o.name};\t//!< ${desc}\n`;
   }
 
   let params = '';

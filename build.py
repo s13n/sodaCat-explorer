@@ -110,15 +110,17 @@ def merge_inherits(chip_json, subfamily_index):
 
 
 def synthesize_interrupts(instances):
-    """Derive a {vector: [signal names]} map from per-instance `outputs:`.
+    """Derive a {vector: [signal names]} map from per-instance `connections:`.
 
-    Per the new schema, each instance carries `outputs: {signal: [dest, ...]}`
-    where destinations of the form "NVIC.<vec>" carry the absolute NVIC
-    vector index. Used to render the chip's interrupt vector table.
+    Per the connections schema (sodaCat b22ebbe7), each instance carries
+    `connections: {signal: [dest, ...]}` where destinations of the form
+    "NVIC.<vec>" carry the absolute NVIC vector index. Used to render
+    the chip's interrupt vector table.
     """
     table = {}
     for inst_name, inst in instances.items():
-        for sig, dests in (inst.get('outputs') or {}).items():
+        conns = inst.get('connections') or inst.get('outputs') or {}
+        for sig, dests in conns.items():
             for dest in dests:
                 inst_pfx, sep, port = dest.partition('.')
                 if not sep or inst_pfx != 'NVIC':
