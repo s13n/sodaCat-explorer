@@ -546,6 +546,98 @@ body {
   margin: 12px 0;
 }
 
+/* ── Pin List ──────────────────────────────────────────── */
+
+.pin-toolbar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.pin-filter {
+  flex: 0 1 320px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+
+.pin-filter:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Scroll container so the sticky header/first column have a viewport. */
+.pin-table-wrap {
+  position: relative;
+  overflow: auto;
+  max-height: calc(100vh - 220px);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+}
+
+.pin-table {
+  margin: 0;
+  font-size: 13px;
+}
+
+.pin-table th,
+.pin-table td {
+  white-space: normal;
+  max-width: 26ch;
+  word-break: break-word;
+  border-right: 1px solid var(--border-light);
+}
+
+.pin-table th {
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.pin-table td {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* Sticky header row. */
+.pin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-card);
+}
+
+/* Sticky first (pin name) column. */
+.pin-table td.pin-name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg-primary);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.pin-table thead th:first-child {
+  left: 0;
+  z-index: 3;
+}
+
+.pin-table tr:hover td {
+  background: var(--bg-card);
+}
+
+.pin-table tr:hover td.pin-name {
+  background: var(--bg-hover);
+}
+
+.pin-table .pin-empty {
+  color: var(--border);
+}
+
 /* ── Diff ──────────────────────────────────────────────── */
 
 .diff-added {

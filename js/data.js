@@ -63,6 +63,10 @@ export async function loadChip(path) {
   return fetchJson(`data/chips/${path}.json`);
 }
 
+export async function loadPinList(path) {
+  return fetchJson(`data/pins/${path}.json`);
+}
+
 export async function loadSearchTier1() {
   return fetchJson('data/search-tier1.json');
 }
@@ -73,6 +77,11 @@ export async function loadSearchTier2() {
 
 export async function loadSearchTier3() {
   return fetchJson('data/search-tier3.json');
+}
+
+export function findChip(path) {
+  if (!indexData) return null;
+  return indexData.chipIndex[path] || null;
 }
 
 export function findVendor(name) {

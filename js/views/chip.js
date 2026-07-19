@@ -49,6 +49,10 @@ export async function renderChip(params) {
   }}, 'Compare with\u2026');
   btnGroup.appendChild(compareBtn);
   btnGroup.appendChild(renderExportButton(data, 'chip', null, path));
+  const chipMeta = getIndex().chipIndex[path];
+  if (chipMeta && chipMeta.hasPinList) {
+    btnGroup.appendChild(el('a', { className: 'btn', href: `#/chip/${path}/pins` }, 'Pin list'));
+  }
   main.appendChild(btnGroup);
 
   // CPU info

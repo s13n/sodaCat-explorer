@@ -9,6 +9,7 @@ import { renderVendor } from './views/vendor.js';
 import { renderFamily } from './views/family.js';
 import { renderSubfamily } from './views/subfamily.js';
 import { renderChip } from './views/chip.js';
+import { renderPinList } from './views/pin-list.js';
 import { renderBlock } from './views/block.js';
 import { renderRegister } from './views/register.js';
 import { renderChipDiff } from './compare/chip-diff.js';
@@ -27,6 +28,7 @@ async function init() {
     addRoute('/vendor/:name', renderVendor);
     addRoute('/family/:code', renderFamily);
     addRoute('/subfamily/:family/:sub', renderSubfamily);
+    addRoute('/chip/:family/:sub/:chip/pins', renderPinList);
     addRoute('/chip/:family/:sub/:chip', renderChip);
     addRoute('/block/:path/reg/:reg', renderRegister);
     addRoute('/block/:path', renderBlock);

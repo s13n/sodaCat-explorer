@@ -34,11 +34,11 @@ There are no automated tests, linter, or formatter configured.
 
 Hash-based SPA router (`js/router.js`) with cleanup function support. Routes are registered in `js/app.js`. Block paths are multi-segment (e.g., `#/block/H7/H742_H753/ADC`), so the router uses regex matching for `/block/` and `/block/.../reg/` routes instead of simple segment matching.
 
-Route hierarchy: `/` → `/family/:code` → `/subfamily/:family/:sub` → `/chip/:family/:sub/:chip` → `/block/:path` → `/block/:path/reg/:reg`. Comparison routes: `/compare/chips/:a/:b`, `/compare/blocks/:a/:b`.
+Route hierarchy: `/` → `/family/:code` → `/subfamily/:family/:sub` → `/chip/:family/:sub/:chip` → `/block/:path` → `/block/:path/reg/:reg`. Comparison routes: `/compare/chips/:a/:b`, `/compare/blocks/:a/:b`. A chip with a pin-list CSV also has `/chip/:family/:sub/:chip/pins` (register the 5-segment pins route before the 4-segment chip route in `app.js`).
 
 ### Data Layer (`js/data.js`)
 
-All data is pre-generated JSON in `data/` (not in git — built by `build.py`). Fetched on demand via `fetch()` with a 50-item LRU cache backed by `Map` insertion order. Key loaders: `loadIndex()`, `loadBlock(path)`, `loadBlockSummary(path)`, `loadChip(path)`. Large blocks (>50 KB) have a `.summary.json` for faster initial loads.
+All data is pre-generated JSON in `data/` (not in git — built by `build.py`). Fetched on demand via `fetch()` with a 50-item LRU cache backed by `Map` insertion order. Key loaders: `loadIndex()`, `loadBlock(path)`, `loadBlockSummary(path)`, `loadChip(path)`, `loadPinList(path)`. Large blocks (>50 KB) have a `.summary.json` for faster initial loads.
 
 ### Search (`js/search.js`)
 
@@ -54,7 +54,9 @@ Two stylesheets: `css/main.css` (layout, typography, components) and `css/regist
 
 ### Data Pipeline (`build.py`)
 
-Multi-vendor Python script that converts sodaCat YAML models into JSON. Auto-discovers vendors by scanning `svd/` subdirectories for config YAMLs with a `families` section; `displayPrefix` in the config is prepended to family codes. Outputs: `index.json` (family tree with vendor metadata), `blocks/*.json` (register maps), `chips/*.json` (instance info), `search-tier{1,2,3}.json` (search indices). Block path resolution follows a hierarchy: subfamily → family → shared. Chip detection uses known chip names from configs (not filename prefixes).
+Multi-vendor Python script that converts sodaCat YAML models into JSON. Auto-discovers vendors by scanning `svd/` subdirectories for config YAMLs with a `families` section; `displayPrefix` in the config is prepended to family codes. Outputs: `index.json` (family tree with vendor metadata), `blocks/*.json` (register maps), `chips/*.json` (instance info), `pins/*.json` (pin-list tables), `search-tier{1,2,3}.json` (search indices). Block path resolution follows a hierarchy: subfamily → family → shared. Chip detection uses known chip names from configs (not filename prefixes).
+
+Pin lists: a `<name>.csv` alongside chip YAMLs (semicolon- or comma-delimited, one row per pad) is parsed into `pins/<route>.json` as `{columns, rows, name, file}`. The CSV stem is a *prefix* of the chip name — one file serves every chip whose name starts with it (e.g. `STM32H745.csv` → `STM32H745_CM4` + `STM32H745_CM7`, same silicon/pinout). Matching chips get `hasPinList`/`pinListPath` in the chip index.
 
 ## Key Conventions
 

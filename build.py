@@ -9,6 +9,7 @@ with a 'families' section. Each YAML file is loaded exactly once per vendor.
 """
 
 import argparse
+import csv
 import json
 import os
 import sys
@@ -24,6 +25,31 @@ def load_yaml(path):
     yaml.width = 4096
     with open(path) as f:
         return yaml.load(f)
+
+
+def load_pinlist(path):
+    """Parse a pin-list CSV (part of a chip model) into {columns, rows}.
+
+    The sodaCat pin-list extractor emits semicolon-delimited files (values
+    such as the "Alternate functions" column contain commas), but we sniff
+    the delimiter so comma-delimited tables also work. Cells are stripped;
+    fully empty rows are dropped; ragged rows are padded to the widest row.
+    """
+    with open(path, newline='', encoding='utf-8-sig') as f:
+        first = f.readline()
+        delim = ';' if first.count(';') >= first.count(',') else ','
+        f.seek(0)
+        rows = [row for row in csv.reader(f, delimiter=delim)]
+
+    rows = [[c.strip() for c in r] for r in rows if any(c.strip() for c in r)]
+    if len(rows) < 2:
+        return None  # header only (or empty) — nothing worth a page
+
+    ncol = max(len(r) for r in rows)
+    for r in rows:
+        r.extend([''] * (ncol - len(r)))
+
+    return {'columns': rows[0], 'rows': rows[1:]}
 
 
 def yaml_to_json_obj(obj):
@@ -286,17 +312,35 @@ def main():
     subfamily_index = {}  # full path "vendor/.../name" -> raw subfamily YAML obj
     search_tier2 = []     # register entries
     search_tier3 = []     # field entries
+    pinlist_csvs = []     # {dir, stem, route, path} for pin-list CSVs found
     chip_json_count = 0
     file_count = 0
 
     blocks_out = output_dir / 'blocks'
     chips_out = output_dir / 'chips'
+    pins_out = output_dir / 'pins'
 
     for vendor_name, models_dir, _config_path, _config, _display_prefix in vendors:
         print(f'Scanning {vendor_name} YAML files from {models_dir}...', flush=True)
 
         for root, _dirs, files in os.walk(models_dir):
             for fname in sorted(files):
+                # Pin-list CSVs live beside the chip YAMLs. Collect them here;
+                # they're matched to chips and written out after the walk.
+                if fname.endswith('.csv'):
+                    fpath = Path(root) / fname
+                    rel = fpath.relative_to(models_dir)
+                    route = str(rel.with_suffix(''))
+                    if '/' not in route:
+                        route = f'{vendor_name}/{route}'
+                    pinlist_csvs.append({
+                        'dir': Path(root),
+                        'stem': fname[:-4],
+                        'route': route,
+                        'path': fpath,
+                    })
+                    continue
+
                 if not fname.endswith('.yaml'):
                     continue
 
@@ -345,6 +389,8 @@ def main():
                     # For now, store json_obj for chip conversion later
                     chip_index[key]['_json'] = json_obj
                     chip_index[key]['_rel'] = rel
+                    chip_index[key]['_srcdir'] = Path(root)
+                    chip_index[key]['_chipname'] = chip_name
 
                 else:
                     # ── Block model ─────────────────────────────────
@@ -437,12 +483,27 @@ def main():
     print('Writing chip JSON files...', flush=True)
     block_usage = {}  # block path -> list of chip usage entries
     subfamily_shared = {}  # "family/sub" -> set of shared block paths
+    referenced_pins = {}  # route -> csv info dict, for pin-list JSONs to emit
     for key, meta in chip_index.items():
         json_obj = meta.pop('_json')
         rel = meta.pop('_rel')
+        srcdir = meta.pop('_srcdir', None)
+        chip_name = meta.pop('_chipname', meta['name'])
         parts = rel.parts
         family_code = parts[0] if len(parts) >= 2 else ''
         subfamily_name = parts[1] if len(parts) >= 3 else ''
+
+        # Attach a pin-list page when a CSV in the chip's directory is named
+        # after it. The CSV stem is a prefix of the chip name (e.g.
+        # STM32H745.csv serves both STM32H745_CM4 and STM32H745_CM7 — same
+        # silicon, one pinout). Prefer the most specific (longest) stem.
+        matches = [c for c in pinlist_csvs if c['dir'] == srcdir
+                   and (c['stem'] == chip_name or chip_name.startswith(c['stem'] + '_'))]
+        if matches:
+            best = max(matches, key=lambda c: len(c['stem']))
+            meta['hasPinList'] = True
+            meta['pinListPath'] = best['route']
+            referenced_pins[best['route']] = best
 
         # Resolve inheritance chain — merge instances/models from any
         # subfamily YAMLs the chip inherits from.
@@ -496,6 +557,25 @@ def main():
     for meta in chip_index.values():
         meta.pop('vendor', None)
     print(f'  {chip_json_count} chip files written', flush=True)
+
+    # ── Write pin-list JSON files (one per referenced CSV) ───────────────
+    pin_count = 0
+    for route, info in sorted(referenced_pins.items()):
+        table = load_pinlist(info['path'])
+        if table is None:
+            print(f'Warning: pin list {info["path"]} is empty, skipping', file=sys.stderr)
+            continue
+        table['name'] = info['stem']
+        table['file'] = info['path'].name
+        out_path = pins_out / (route + '.json')
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(table, separators=(',', ':')))
+        pin_count += 1
+    if pinlist_csvs:
+        unref = [c['route'] for c in pinlist_csvs if c['route'] not in referenced_pins]
+        for r in sorted(set(unref)):
+            print(f'Warning: pin list {r}.csv matches no chip, not linked', file=sys.stderr)
+    print(f'  {pin_count} pin-list files written', flush=True)
 
     # ── Write block JSON files (deferred to inject usedIn) ────────────
     print('Writing block JSON files...', flush=True)
