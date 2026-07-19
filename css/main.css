@@ -586,10 +586,21 @@ body.sidebar-collapsed #content {
   max-width: none;
   height: calc(100vh - var(--header-height));
   overflow: auto;
-  padding-top: 0;   /* sticky thead sticks flush to the top; gap via h1 margin */
+  /* No padding on the scroll container itself: a left gutter would let the
+     table's scrolled cells peek out to the left of the sticky pin-name
+     column. Spacing is applied to the children instead, so the frozen column
+     sits flush at the scrollport's left edge with nothing able to show left
+     of it. The table goes edge-to-edge; its cells' own padding insets text. */
+  padding: 0;
 }
 
-#content.content-wide .section-header:first-child {
+#content.content-wide > .section-header,
+#content.content-wide > .pin-toolbar {
+  padding-left: 32px;
+  padding-right: 32px;
+}
+
+#content.content-wide > .section-header:first-child {
   margin-top: 24px;
 }
 
