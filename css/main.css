@@ -69,6 +69,23 @@ body {
   min-width: 0;
 }
 
+.icon-btn {
+  flex: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 .logo {
   font-size: 20px;
   font-weight: bold;
@@ -223,6 +240,17 @@ body {
   margin-left: var(--sidebar-width);
   padding: 24px 32px;
   max-width: 1200px;
+}
+
+/* Collapsed sidebar: hide the tree + its resize handle and reclaim the
+   horizontal space for the content pane. Toggled from the header button. */
+body.sidebar-collapsed #sidebar,
+body.sidebar-collapsed #sidebar-resize {
+  display: none;
+}
+
+body.sidebar-collapsed #content {
+  margin-left: 0;
 }
 
 /* ── Sidebar Tree ──────────────────────────────────────── */
@@ -549,9 +577,20 @@ body {
 /* ── Pin List ──────────────────────────────────────────── */
 
 /* Pin tables are wide; let the pin page use the full content area instead
-   of the default 1200px reading width. Toggled by the pin-list view. */
+   of the default 1200px reading width, and make #content its own scroll
+   viewport (toggled by the pin-list view). overflow:auto also makes the flex
+   item's min-width resolve to 0, so the table never forces the whole page to
+   scroll horizontally under the fixed sidebar — the scrollbars sit at the
+   viewport edges and span only the content pane, right of the tree. */
 #content.content-wide {
   max-width: none;
+  height: calc(100vh - var(--header-height));
+  overflow: auto;
+  padding-top: 0;   /* sticky thead sticks flush to the top; gap via h1 margin */
+}
+
+#content.content-wide .section-header:first-child {
+  margin-top: 24px;
 }
 
 .pin-toolbar {
@@ -577,13 +616,11 @@ body {
   border-color: var(--accent);
 }
 
-/* Scroll container so the sticky header/first column have a viewport. */
+/* Plain wrapper — the scroll viewport is #content.content-wide, so the table
+   sits at its natural size and the sticky header/first column stick to that
+   viewport. No inner scrollbars. */
 .pin-table-wrap {
   position: relative;
-  overflow: auto;
-  max-height: calc(100vh - 220px);
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
 }
 
 .pin-table {
