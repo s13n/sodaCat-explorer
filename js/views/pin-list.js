@@ -39,9 +39,16 @@ export async function renderPinList(params) {
   }
 
   main.innerHTML = '';
+  // Pin tables are wide — let this page use the full content width.
+  main.classList.add('content-wide');
 
   const rows = data.rows || [];
   const columns = data.columns || [];
+
+  // Free-text columns (comma-lists, prose) wrap; everything else stays on one
+  // line and sizes to content. Detect by header name so it works per vendor.
+  const wrapCol = /function|description|remark|footnote|note/i;
+  const isWrap = columns.map(c => wrapCol.test(c));
 
   // Header
   const source = data.name && data.name !== chipName
@@ -66,7 +73,9 @@ export async function renderPinList(params) {
   const table = el('table', { className: 'data-table pin-table' });
   const thead = el('thead');
   const headRow = el('tr');
-  for (const col of columns) headRow.appendChild(el('th', {}, col));
+  columns.forEach((col, i) => {
+    headRow.appendChild(el('th', { className: isWrap[i] ? 'pin-wrap' : '' }, col));
+  });
   thead.appendChild(headRow);
   table.appendChild(thead);
 
@@ -76,8 +85,11 @@ export async function renderPinList(params) {
     const tr = el('tr');
     for (let i = 0; i < columns.length; i++) {
       const val = cells[i] || '';
-      const td = el('td', { className: i === 0 ? 'pin-name' : (val ? '' : 'pin-empty') }, val || '—');
-      tr.appendChild(td);
+      const cls = [];
+      if (i === 0) cls.push('pin-name');
+      if (isWrap[i]) cls.push('pin-wrap');
+      if (!val) cls.push('pin-empty');
+      tr.appendChild(el('td', { className: cls.join(' ') }, val || '—'));
     }
     tbody.appendChild(tr);
     rowEntries.push({ tr, text: cells.join(' ').toLowerCase() });
@@ -109,5 +121,6 @@ export async function renderPinList(params) {
   return () => {
     cancelAnimationFrame(raf);
     filterInput.removeEventListener('input', onInput);
+    main.classList.remove('content-wide');
   };
 }

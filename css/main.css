@@ -548,6 +548,12 @@ body {
 
 /* ── Pin List ──────────────────────────────────────────── */
 
+/* Pin tables are wide; let the pin page use the full content area instead
+   of the default 1200px reading width. Toggled by the pin-list view. */
+#content.content-wide {
+  max-width: none;
+}
+
 .pin-toolbar {
   display: flex;
   align-items: baseline;
@@ -585,22 +591,27 @@ body {
   font-size: 13px;
 }
 
+/* Cells size to their content on a single line by default — no artificial
+   wrapping. Genuinely wide columns opt into wrapping via .pin-wrap below. */
 .pin-table th,
 .pin-table td {
-  white-space: normal;
-  max-width: 26ch;
-  word-break: break-word;
-  border-right: 1px solid var(--border-light);
-}
-
-.pin-table th {
   white-space: nowrap;
+  border-right: 1px solid var(--border-light);
   font-family: var(--font-mono);
 }
 
 .pin-table td {
-  font-family: var(--font-mono);
   font-size: 12px;
+}
+
+/* Free-text columns (alternate/additional functions, description, remarks,
+   footnotes) wrap at a generous width rather than forcing one long line. */
+.pin-table th.pin-wrap,
+.pin-table td.pin-wrap {
+  white-space: normal;
+  min-width: 24ch;   /* floor so overflow doesn't collapse these to min-content */
+  max-width: 52ch;
+  overflow-wrap: break-word;
 }
 
 /* Sticky header row. */
